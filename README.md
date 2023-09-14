@@ -19,11 +19,11 @@ reference:
     title = {Notes on Foundations of Probabilistic Programming},
     howpublished = {\url{https://github.com/neuppl/CS7470-Notes}},
 }
-
 ```
 
 # Topics
 
-* Lecture 1: Propositional Probability I: Semantics
-* Lecture 2: Propositional Probability II: Reasoning
-* Lecture 3: Propositional Probability III: Compiling
+* Lecture 1: Introduction and overview
+* Lecture 2: Propositional Probability I: Semantics
+* Lecture 3: Propositional Probability II: Reasoning
+* Lecture 4: Propositional Probability III: Compiling
