@@ -309,7 +309,7 @@ Example \prop{} program:
 
 % Now we can prove the main theorem:
 
-\begin{proof}
+\begin{proof}[Proof sketch]
   We will show this by structural induction on \texttt{p}. 
   The base cases are straightforward: If $\texttt{p} = (\true, w)$, then 
   $(\pi, (\true, w)) \Downarrow^e 1$. By definition, $\dbracket{\Gamma \vdash (\true, w)} = \sum_{I \in \dbracket{\Gamma \vdash \true}} w(I) = 1$; 
@@ -333,7 +333,7 @@ is a good exercise, and relies on splitting up the models of $\varphi$ into 2 se
 Then, observe that $\dbracket{\Gamma \vdash (\varphi \land x), w} = w(x)(\true)
 \dbracket{\Gamma \vdash (\varphi[x \mapsto \true])}$ (this fact is not as straightforward
 to show as Shannon expansion, and proving it rigorously relies on a 
-full inductive definition of substitution, so we elide this proof the time being). 
+full inductive definition of substitution, so we elide step for the time being). 
 
   % Then, 
   % \begin{align*}
