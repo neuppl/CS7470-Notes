@@ -14,8 +14,7 @@
 \begin{document}
 \maketitle% this prints the handout title, author, and date
 
-
-Now we are ready to return to our earlier discussion and ask: \emph{can we use
+Now we are ready to ask: \emph{can we use
 propositional logic as the basis for an effective probabilistic model}?
 The first question is: what is our sample space? It's clear so far that a logical 
 choice of sample space is the set of all possibly instances for a fixed set 
@@ -28,11 +27,13 @@ need two more components:
     \item A way to efficiently represent queries over that sample space.
 \end{enumerate}
 
-Let's tackle (1) first. What is an alternative representation of a distribution 
-that avoids the space-explosion we saw in the lookup-table representation? We 
-will need to be more clever about how we represent probabilities. One useful
-choice is to assume that all random variables are \emph{independent from each other}, 
-and therefore we can concisely describe a joint distribution over all of them:
+% We will explore answers to these questions today.
+
+% Let's tackle (1) first. What is an alternative representation of a distribution 
+% that avoids the space-explosion we saw in the lookup-table representation? We 
+% will need to be more clever about how we represent probabilities. One useful
+% choice is to assume that all random variables are \emph{independent from each other}, 
+% and therefore we can concisely describe a joint distribution over all of them:
 
 \begin{definition}[Fully factorized probabilistic model]
     Let $X_1, X_2, \cdots, X_n$ be jointly independent random variables (i.e.,
@@ -42,80 +43,109 @@ and therefore we can concisely describe a joint distribution over all of them:
     as $\Pr(X_1, X_2, \cdots, X_n) \triangleq \prod_i^n \Pr(X_i)$.
 \end{definition}
 
-Observe that a fully-factorized model only requires $O(\sum_i |X_i|)$ space,
-which is significantly smaller than $|\Omega|$.\sidenote{The notation $|X|$
-refers to the size of a random variable's co-domain.} This is a big improvement
-over plain lookup tables, but it comes at a cost of expressivity: there are some
-distributions that cannot be represented in a fully-factorized way.
+% Observe that a fully-factorized model only requires $O(\sum_i |X_i|)$ space,
+% which is significantly smaller than $|\Omega|$.\sidenote{The notation $|X|$
+% refers to the size of a random variable's co-domain.} This is a big improvement
+% over plain lookup tables, but it comes at a cost of expressivity: there are some
+% distributions that cannot be represented in a fully-factorized way.
 
-In the context of propositional logic, there is a natural notion of a
-fully-factorized model. Let $\Omega$ be the collection of $n$-element instances.
-Then, each propositional variable corresponds to a projection out of that sample
-space. Let's call this the \defn{fully factorized propositional distribution}: each 
-variable in the theory will be associated with an independent probability of 
-being $\true$ or $\false$. For example, we may have to propositional variables $x$ and 
-$y$; the fully factorized distribution could be given by two independent lookup tables:
-\begin{align}
-    [x \mapsto 0.1, \overline{x} \mapsto 0.9], \quad [y \mapsto 0.2, \overline{y} \mapsto 0.8].
-    \label{eq:indepdist}
-\end{align}
-Then, the joint probability $\Pr(x, \overline{y})$ is $0.1 \times 0.8$.
+\section{A Propositional PPL (\prop{})}
+Syntax of \prop{}:
+\begin{lstlisting}[mathescape=true]
+$\varphi ::= x \mid \varphi \land \varphi \mid \varphi \lor \varphi \mid \neg \varphi \mid \true \mid \false$ 
+$w ::= [x \mapsto \theta_x, y \mapsto \theta_y, \cdots]$
+p ::= $(\varphi, w)$
+\end{lstlisting}
 
-\newthought{Now we return to an earlier question}: how do we efficiently represent 
-events in the propositional setting? Events are a subset of the sample space. 
-The sample space in propositional probability is the set of all instances. Then, 
-we can represent events by \emph{propositional formulae}:
-\begin{align}
-    \Pr(\varphi) \triangleq \sum_{I \models \varphi} \Pr(\varphi).
-\end{align}
-For instance, for the fully-factorized 
-distribution in Eq.~\ref{eq:indepdist}, we can compute the probability of a 
-propositional sentence $x \lor y$ by summing the probability mass over each 
-instance that models this formula:
-\begin{align}
-    \Pr(x \lor y) = \Pr([x, y]) + \Pr([x, \overline{y}]) + \Pr(\overline{x}, y).
-\end{align}
+Example \prop{} program:
 
-This is implemented by the following algorithm:
+\begin{lstlisting}[mathescape=true]
+($x \lor y$, [$x \mapsto 0.1, y \mapsto 0.2$])
+\end{lstlisting}
 
-\begin{algorithm}
-    \caption{QueryPropositionalEvent$_1$($\Pr, \varphi)$}
-    \KwData{A fully-factorized distribution $\Pr$; a propositional formula $\varphi$}
-    \KwResult{The probability of the event $\Pr(\varphi)$}
-    $a \leftarrow 0$\;
-    \For{each $I \in \Omega$}{
-        \lIf{$I \models \varphi$}{$a \leftarrow a + \Pr(\omega)$}
-    }
-    \Return{a}
-    \label{alg:enum}
-\end{algorithm}
+We will assume that all well-formed \prop{} programs give a probability to each
+variable, and in those note we will restrict ourselves to considering
+well-formed programs. 
 
+\begin{itemize}
+  \item Denotational semantics of \prop{}: we want to associate every program in
+  \prop{} with the probability that $\varphi$ holds according to the fully-factorized distribution 
+  described by $w$
+  \item \defn{Goal}: Define a map $\dbracket{\cdot} : \texttt{p} \rightarrow [0,1]$ that is a map from 
+  \prop{} terms to real values. \marginnote{For more on the history and context of different 
+  styles of semantics, see \citet[Chapter 3]{pierce2002types}}
+  \item We will need semantics for $\varphi$ and the map $m$ in order to
+  interpret \texttt{p}. 
+  They have the following types:
+  \begin{itemize}
+    \item $\dbracket{\varphi}$ maps propositional formulae to the set of all instances that model them
+    \item $\dbracket{w}$ produces a map from literals (propositional variables 
+    and a truth assignment) to real values
+  \end{itemize}
+  \begin{align}
+    \dbracket{\varphi} &\triangleq \{I \mid I \models \varphi\}\\
+    \dbracket{[x \mapsto \theta, \cdots]}(x) &\triangleq \theta\\
+    \dbracket{[x \mapsto \theta, \cdots]}(\overline{x}) &\triangleq 1-\theta\\
+    \dbracket{[]}(x) &\triangleq 0 \\
+    \dbracket{[y \mapsto \theta_y, r]}(x) &\triangleq \dbracket{[r]}(x)
+  \end{align}
+  We need to assume a propositional universe so that these equations are well-defined.
+  Assume that all instances are defined on all free variables in $\texttt{p}$.
+  \item We define the probability of an instance $\dbracket{w}(I)$ as the product of probabilities 
+  of each variable in the instance. For instance,
+  \begin{align*}
+    \dbracket{(x \mapsto 0.1, y \mapsto 0.3)}(x, \overline{y}) = 
+    0.1 * 0.7.
+  \end{align*}
+  Note that we are interpreting the probability of a negated variable as 
+  1 minus the probability of the positive variable.
+  \item Now we are ready to interpret \prop{} programs as the sum of the probabilities 
+  of each model:
+  \begin{align}
+    \dbracket{(\varphi, w)} \triangleq \sum_{I \in \dbracket{\varphi}} \prod_{\ell \in I} \dbracket{w}(\ell).
+  \end{align}
 
-Unfortunately, QueryPropositionalEvent is \emph{still linear} in the size of
-$|\Omega|$ due to the outer loop on Lines 2--4.  In all cases, regardless of the
-structure of $\varphi$, we have to consider all all the instances, which will
-not scale. 
+\end{itemize}
 
-\subsection{Efficiently evaluating queries via search}
-How do we avoid scaling in $|\Omega|$ during querying? 
-In other words: is it possible to design a scalable automated reasoning strategy 
-for our tiny probabilistic programming language that we've made so far, with fully-factorized 
-propositional distributions and queries given as propositional formulae?
-In the worst case, it
-may not be possible to avoid considering all possible instances, but we can 
-try to avoid this worst-case explosion by delicately \emph{exploiting the problem 
-structure}: in particular, we want to simultaneously exploit the fully-factorized 
-structure of the distribution along with the fact that all events are written 
-as propositional formulae.
+\begin{itemize}
+  \item Is this a \emph{useful} PPL? What kinds of programs 
+  can we write in it?
+\end{itemize}
 
-One approach is to \emph{exploit the structure of models of the query
-$\varphi$}: sometimes, a query may only have a single model, or perhaps most
-instances are models. In these cases, we waste a lot of effort enumerating all
-models; it is much more efficient to \emph{search} for the few satisfying instances.
+\section{Big-step semantics}
+\begin{itemize}
+  \item Our denotational model does not tell us how to efficiently compute probabilities
+  \item \textbf{Goal}: given a \prop{} program, \emph{efficiently evaluate it}
 
-For example, consider the formula $x \lor y$. We can recursively decompose this
-formula by branching on assignments to propositional variables:
+    \textbf{Running example}: The simple \prop{} program:
+\begin{lstlisting}[mathescape=true]
+($x \lor y$, $[x \mapsto 0.1, y \mapsto 0.3]$)
+\end{lstlisting}
 
+    \item Worst-case hardness: computing $\Pr(\varphi_{ex})$ is NP-hard for 
+    arbitrary formulae.
+
+    We will show this by reduction to the \defn{SAT problem}: the problem of
+    determining whether or not a formula has a model.
+
+    Reduction: Let $\varphi$ be a formula. Assign a probability of 0.5 to 
+    every assignment of variables. Then, $\varphi$ has a model if and 
+    only if $\Pr(\varphi) > 0$.
+    
+    \item In fact, computing $\Pr(\varphi_{ex})$ is \#P-hard. 
+    \#P is the class of problems that are polytime reducible to counting 
+    the number of solutions to an arbitrary Boolean formula.
+    See \citet[Chapter
+    6]{goldreich2008computational} for more discussion on this complexity class, 
+    as well as \citet{roth1996hardness}.
+\end{itemize}
+
+\subsection{Evaluating queries via search}
+\begin{itemize}
+    \item \emph{Idea}: We want to \emph{search} through the space of models of
+    the formula to potentially avoid exploring all possible worlds. Aim for better 
+    average-case/common-case behavior than the naive table enumeration.
+    
 \begin{tikzpicture}
     [
       grow                    = right,
@@ -137,73 +167,291 @@ formula by branching on assignments to propositional variables:
                 edge from parent node [above] {$x = \false$} };
   \end{tikzpicture}
 
-The root of this binary tree is the original formula $x \lor y$. Each branch 
-assigns a propositional variable to a Boolean value. The children are 
-the resulting formula evaluated on the \emph{partial instance} given by the 
-path up until that point: for instance, if we assign $x = \false$, we are left 
-with the formula $\false \lor y = y$. Leaves of the tree denote whether or not a 
-particular assignment is a model.\sidenote{\input{../construction}}
+    \item We will describe a relation $(\pi, \texttt{p}) \Downarrow^e \real$:
+    \begin{itemize}[noitemsep]
+        \item $\pi$ is an ordered list of propositional variables. We denote 
+        list concatenation as $x::\pi$. 
+        \item \texttt{p} is a \prop{} program
+        \item The result $\mathbb{R}$ will be equal to $\dbracket{\texttt{p}}$
+    \end{itemize}
 
-% this can be described using big-step!
-\begin{algorithm}
-    \caption{PrEvent($\Pr, \varphi$)}
-    \KwData{A fully-factorized distribution $\Pr$; a propositional formula $\varphi$; a decision order $\sigma$.}
-    \KwResult{The probability $\Pr(\varphi)$.}
-    \lIf{$\varphi = \true$}{\Return 1}
-    \lIf{$\varphi = \false$}{\Return 0}
-    $v \leftarrow head(\sigma)$\;
-    $\sigma' \leftarrow tail(\sigma)$\;
-    $ \varphi_v \leftarrow $ fix $v = \true$ in $\varphi$\;
-    $ \varphi_{\overline{v}} \leftarrow $ fix $v = \false$ in $\varphi$\;
-    \Return{$\Pr(v) \times $PrEvent$(\Pr, \varphi_v) + \Pr(\overline{v}) \times $PrEvent$(\Pr, \varphi_{\overline{v}})$}
-    \label{alg:rec}
-\end{algorithm}
+    \item Define $\varphi[x \mapsto v]$ as the substitution where we replace all
+    instances of $x$ with the value $v \in \{\true, \false\}$ in $\varphi$, and
+    ``simplify'' $\varphi$ by evaluating connectives until either (1) there are no more 
+    $\true$ or $\false$ constants, or (2) the formula is equal to $\true$ or $\false$. \marginnote{We are being a 
+    bit informal here to save time. If we have time, we can discuss this substitution 
+    operation more formally.}
+    \\
+    Example: $(x \lor y)[x \mapsto \true] = y$.
 
-You should convince yourself that the above algorithm is correct by trying it on a few examples. 
-It is a good exercise to prove it correct inductively.
-What is the runtime of Algorithm~\ref{alg:rec}? In the worst-case, it is still $|\Omega|$. But, 
-sometimes -- depending on the structure of $\varphi$ -- it can do better by terminating the 
-recursion earlier in a base-case on Lines 1 and 2, rather than exhaustively exploring all 
-instances like Algorithm~\ref{alg:enum}.
+    \item 
+    Now, let's describe our procedure for searching to solve our
+    inference problem. 
+    We will define $\Downarrow^e$ inductively. The base-cases will be 
+    formulas without any free variables: 
+    \begin{mathpar}
+    \inferrule[\textsc{(True)}]{}{(\pi, (\true, w)) \Downarrow^e 1}
+    \and
+    \inferrule[\textsc{(False)}]{}{(\pi, (\false, w)) \Downarrow^e 0}
+    \end{mathpar}
+
+    \item Then, the inductive step:
+  \begin{mathpar}
+    \inferrule[\textsc{(Split)}]{(\pi, (\varphi[x \mapsto \true], w)) \Downarrow^e v_1 \and 
+    (\pi, (\varphi[x \mapsto \false], w)) \Downarrow v_2
+    }{(x :: \pi, (\varphi, w)) \Downarrow^e w(x)v_1 + w(\overline{x}) v_2} \\
+\end{mathpar}
 
 
 
-% Now, suppose we are given a probability measure $\Pr$ on instances. Now we want
-% to ask: \emph{what is the probability that a particular sentence $\varphi$ is
-% true for this world?} A subset of $\Omega$ is called an \defn{event}, and the 
-% probability of this particular event can be computed as the total probability of
-% all models of $\varphi$:
+  \item Example derivation tree for our running example for the order $\pi = [x, y]$ 
+  and our program ($x \lor y$, $[x \mapsto 0.1, y \mapsto 0.3]$)
+
+  % \begin{mathpar}
+  %     \inferrule
+  %     {\inferrule{\inferrule{([], (\true, w) \Downarrow^e 1)} \and ([], (\false, w) \Downarrow^e 0)}}{(y::[], y) \Downarrow } }
+  %     {(x::[y], (x \lor y, w)) \Downarrow }
+  % \end{mathpar}
+
+  \item The \defn{cost} of evaluating a formula $\varphi$ for order $\pi$ under
+  these semantics is equal to the total number of derivations in the derivation
+  tree.
+\end{itemize}
+
+
+\begin{theorem}
+  Let \texttt{p} be \prop{} program and $\pi$ be an ordering on all 
+  variables in \texttt{p}, and $\Pr$ be a fully-factorized joint 
+  distribution on all variables in $\varphi$. 
+  If $(\pi, \texttt{p}) \Downarrow v$, then
+   $\dbracket{\texttt{p}} = v$.
+\end{theorem}
+\begin{proof}
+  We will show this by structural induction on \texttt{p}. 
+  The base cases are straightforward: If $\texttt{p} = (\true, w)$, then 
+  $(\pi, (\true, w)) \Downarrow^e 1$. By definition, $\dbracket{(\true, w)} = \sum_{I \models \true} w(I) = 1$; 
+  similar for the false case.
+
+  Induction hypothesis (IH): Let $(x::\pi, (\varphi[x \mapsto \true], w)) \Downarrow^e v_1$ and 
+  $(x::\pi, (\varphi[x \mapsto \false], w)) \Downarrow^e v_2$, and $(\pi, (\varphi, w)) \Downarrow^e v$. Assume by induction that 
+  $v_1 = \dbracket{(\varphi[x \mapsto \false], w)}$ and $v_2 = \dbracket{(\varphi [x \mapsto \true], w)}$. Then, 
+  \begin{align*}
+    \dbracket{(\varphi, w)} &= \sum_{I \in \dbracket{\varphi}} w(I) \\ 
+    &= \underbrace{\sum_{\{I \mid I \in \dbracket{\varphi}, I(x) = \true\}} w(I)}_{(A)} + 
+\underbrace{\sum_{\{I \mid I \in \dbracket{\varphi}, I(x) = \false\}} w(I)}_{(B)}
+    % &= \sum_{\{ I \mid I \models \varphi, I(x) = \true \}} \Pr(I) + 
+    % \sum_{\{ I \mid I \models \varphi, I(x) = \false\}} \Pr(I)\\
+    % &= \\
+    % &= \Pr(x) \sum_{\{ I \mid I \models \varphi, I(x) = \true \}} \Pr(I \setminus \{x\}) + 
+    % \Pr(\overline{x})\sum_{\{ I \mid I \models \varphi, I(x) = \false\}} \Pr(I \setminus \{x\}) \\
+    % &= \Pr(x) \Pr(\varphi[x \mapsto \true]) + \Pr(\overline{x}) \Pr(\varphi[x \mapsto \false])\\
+    % &= \Pr(x) v_1 + \Pr(\overline{x}) v_2.
+  \end{align*}
+
+Example: consider the formula $x \lor y$. Then: \begin{align*} \dbracket{(x \lor
+y, w)} = \underbrace{w(xy) + w(x\overline{y})}_{(A)} +
+\underbrace{w(\overline{x}y)}_{(B)} \end{align*}
+
+Since $v = w(x) v_1 + w(\overline{x})v_2 = w(x) \dbracket{(\varphi[x \mapsto \true], w)} + 
+w(\overline{x}\dbracket{(\varphi[x \mapsto \false], w)})$ by IH, we are done if we can show that 
+$(A) = w(x) \dbracket{(\varphi[x \mapsto \true], w)}$ and $(B) =
+w(\overline{x})\dbracket{(\varphi[x \mapsto \false], w)}$.
+
+To show this observe that after substituting, $x$ is no longer in $\varphi[x \mapsto v]$. 
+Example:
+\begin{align*}
+  \dbracket{(x \lor y)[x \mapsto \false]} &= \dbracket{y} = w(xy) + w(\overline{x}y)\\ 
+  \dbracket{(x \lor y)[x \mapsto \true]} &= \dbracket{\true}
+\end{align*}
+Clearly there are permitted models after we restrict in this way. But, due to the 
+factorization of $w$, we can prove that:
+\begin{align*}
+  \dbracket{(\varphi[x \mapsto v], w)} = w(x)\dbracket{(\varphi, w)}.
+\end{align*}
+
+\end{proof}
+
+
+
+\begin{itemize}
+  \item What is the cost of enumerating the formula $x \lor y \lor z \lor w$ with these 
+  semantics? It will be linear-time for any order; a big improvement over the 
+  exhaustive enumeration!
+
+  \item However, what about a formula like $(a \land b) \lor (c \land d)$?
+\end{itemize}
+
+\section{Memoization}
+
+\begin{itemize}
+  \item This process is sometimes also called \emph{variable elimination}
+  \item Add a context to the reduction relation $\rho: \varphi \rightarrow [0,
+  1]$ that maps formulae to their probability of being true
+  \item Relation now has the shape:
+  \begin{align*}
+    (\pi, \rho, \texttt{p}) \Downarrow^m (\real, \rho')
+  \end{align*}
+\end{itemize}
+
+
+
+
+% In the context of propositional logic, there is a natural notion of a
+% fully-factorized model. Let $\Omega$ be the collection of $n$-element instances.
+% Then, each propositional variable corresponds to a projection out of that sample
+% space. Let's call this the \defn{fully factorized propositional distribution}: each 
+% variable in the theory will be associated with an independent probability of 
+% being $\true$ or $\false$. For example, we may have to propositional variables $x$ and 
+% $y$; the fully factorized distribution could be given by two independent lookup tables:
 % \begin{align}
-%     \Pr(\varphi) \triangleq \sum_{I \models \varphi} \Pr(I).
-%     \label{eq:pr2}
+%     [x \mapsto 0.1, \overline{x} \mapsto 0.9], \quad [y \mapsto 0.2, \overline{y} \mapsto 0.8].
+%     \label{eq:indepdist}
 % \end{align}
-% Note that above we overloaded the notation used for $\Pr$ to now act 
-% on events; this is common practice.
-% As an example, using the probability measure given in Table~\ref{tbl:simple}, we
-% can compute:
+% Then, the joint probability $\Pr(x, \overline{y})$ is $0.1 \times 0.8$.
+
+% \newthought{Now we return to an earlier question}: how do we efficiently represent 
+% events in the propositional setting? Events are a subset of the sample space. 
+% The sample space in propositional probability is the set of all instances. Then, 
+% we can represent events by \emph{propositional formulae}:
 % \begin{align}
-% \Pr(x \lor y) = \Pr([x, y]) + \Pr([x, \overline{y}]) + \Pr(\overline{x}, y) = 0.6.
+%     \Pr(\varphi) \triangleq \sum_{I \models \varphi} \Pr(\varphi).
+% \end{align}
+% For instance, for the fully-factorized 
+% distribution in Eq.~\ref{eq:indepdist}, we can compute the probability of a 
+% propositional sentence $x \lor y$ by summing the probability mass over each 
+% instance that models this formula:
+% \begin{align}
+%     \Pr(x \lor y) = \Pr([x, y]) + \Pr([x, \overline{y}]) + \Pr(\overline{x}, y).
 % \end{align}
 
-% \subsection{A propositional probabilistic programming language}
-% Tables like Table~\ref{tbl:simple} are a very inconvenient way to describe a
-% probability distribution. They are exponential in size, making them infeasible 
-% to write down for a large set of propositional variables, and they convey no useful 
-% structure to the user. In short, tables aren't a very useful probabilistic 
-% programming language.
+% This is implemented by the following algorithm:
 
-% It is much more convenient and usable 
+% \begin{algorithm}
+%     \caption{QueryPropositionalEvent$_1$($\Pr, \varphi)$}
+%     \KwData{A fully-factorized distribution $\Pr$; a propositional formula $\varphi$}
+%     \KwResult{The probability of the event $\Pr(\varphi)$}
+%     $a \leftarrow 0$\;
+%     \For{each $I \in \Omega$}{
+%         \lIf{$I \models \varphi$}{$a \leftarrow a + \Pr(\omega)$}
+%     }
+%     \Return{a}
+%     \label{alg:enum}
+% \end{algorithm}
 
-\begin{exercise}[$\star$]
-    Assume the following fully-factorized distribution on propositional variables:
-    \begin{align*}
-        [x \mapsto 0.1, \overline{x} \mapsto 0.9],\quad [y \mapsto 0.3, \overline{y} \mapsto 0.7].
-    \end{align*}
-    Use an exhaustive search tree to compute $\Pr(x \Leftrightarrow y)$.
-\end{exercise}
-\begin{exercise}[$\star\star$]
-    Prove Algorithm~\ref{alg:rec} correct.
-\end{exercise}
+
+% Unfortunately, QueryPropositionalEvent is \emph{still linear} in the size of
+% $|\Omega|$ due to the outer loop on Lines 2--4.  In all cases, regardless of the
+% structure of $\varphi$, we have to consider all all the instances, which will
+% not scale. 
+
+% \subsection{Efficiently evaluating queries via search}
+% How do we avoid scaling in $|\Omega|$ during querying? 
+% In other words: is it possible to design a scalable automated reasoning strategy 
+% for our tiny probabilistic programming language that we've made so far, with fully-factorized 
+% propositional distributions and queries given as propositional formulae?
+% In the worst case, it
+% may not be possible to avoid considering all possible instances, but we can 
+% try to avoid this worst-case explosion by delicately \emph{exploiting the problem 
+% structure}: in particular, we want to simultaneously exploit the fully-factorized 
+% structure of the distribution along with the fact that all events are written 
+% as propositional formulae.
+
+% One approach is to \emph{exploit the structure of models of the query
+% $\varphi$}: sometimes, a query may only have a single model, or perhaps most
+% instances are models. In these cases, we waste a lot of effort enumerating all
+% models; it is much more efficient to \emph{search} for the few satisfying instances.
+
+% For example, consider the formula $x \lor y$. We can recursively decompose this
+% formula by branching on assignments to propositional variables:
+
+% \begin{tikzpicture}
+%     [
+%       grow                    = right,
+%       sibling distance        = 6em,
+%       level distance          = 10em,
+%       edge from parent/.style = {draw, -latex},
+%       every node/.style       = {font=\footnotesize},
+%       sloped
+%     ]
+%     \node [env] {$x \lor y$}
+%       child { node [env] {$\true$}
+%         edge from parent node [below] {$x = \true$} }
+%       child { node [env] {$y$}
+%         child { node [env] {$\false$}
+%           edge from parent node [below] {$y = \false$} }
+%         child { node [env] {$\true$}
+%                 edge from parent node [above, align=center]
+%                   {$y = \true$}}
+%                 edge from parent node [above] {$x = \false$} };
+%   \end{tikzpicture}
+
+% The root of this binary tree is the original formula $x \lor y$. Each branch 
+% assigns a propositional variable to a Boolean value. The children are 
+% the resulting formula evaluated on the \emph{partial instance} given by the 
+% path up until that point: for instance, if we assign $x = \false$, we are left 
+% with the formula $\false \lor y = y$. Leaves of the tree denote whether or not a 
+% particular assignment is a model.\sidenote{\input{../construction}}
+
+% % this can be described using big-step!
+% \begin{algorithm}
+%     \caption{PrEvent($\Pr, \varphi$)}
+%     \KwData{A fully-factorized distribution $\Pr$; a propositional formula $\varphi$; a decision order $\sigma$.}
+%     \KwResult{The probability $\Pr(\varphi)$.}
+%     \lIf{$\varphi = \true$}{\Return 1}
+%     \lIf{$\varphi = \false$}{\Return 0}
+%     $v \leftarrow head(\sigma)$\;
+%     $\sigma' \leftarrow tail(\sigma)$\;
+%     $ \varphi_v \leftarrow $ fix $v = \true$ in $\varphi$\;
+%     $ \varphi_{\overline{v}} \leftarrow $ fix $v = \false$ in $\varphi$\;
+%     \Return{$\Pr(v) \times $PrEvent$(\Pr, \varphi_v) + \Pr(\overline{v}) \times $PrEvent$(\Pr, \varphi_{\overline{v}})$}
+%     \label{alg:rec}
+% \end{algorithm}
+
+% You should convince yourself that the above algorithm is correct by trying it on a few examples. 
+% It is a good exercise to prove it correct inductively.
+% What is the runtime of Algorithm~\ref{alg:rec}? In the worst-case, it is still $|\Omega|$. But, 
+% sometimes -- depending on the structure of $\varphi$ -- it can do better by terminating the 
+% recursion earlier in a base-case on Lines 1 and 2, rather than exhaustively exploring all 
+% instances like Algorithm~\ref{alg:enum}.
+
+
+
+% % Now, suppose we are given a probability measure $\Pr$ on instances. Now we want
+% % to ask: \emph{what is the probability that a particular sentence $\varphi$ is
+% % true for this world?} A subset of $\Omega$ is called an \defn{event}, and the 
+% % probability of this particular event can be computed as the total probability of
+% % all models of $\varphi$:
+% % \begin{align}
+% %     \Pr(\varphi) \triangleq \sum_{I \models \varphi} \Pr(I).
+% %     \label{eq:pr2}
+% % \end{align}
+% % Note that above we overloaded the notation used for $\Pr$ to now act 
+% % on events; this is common practice.
+% % As an example, using the probability measure given in Table~\ref{tbl:simple}, we
+% % can compute:
+% % \begin{align}
+% % \Pr(x \lor y) = \Pr([x, y]) + \Pr([x, \overline{y}]) + \Pr(\overline{x}, y) = 0.6.
+% % \end{align}
+
+% % \subsection{A propositional probabilistic programming language}
+% % Tables like Table~\ref{tbl:simple} are a very inconvenient way to describe a
+% % probability distribution. They are exponential in size, making them infeasible 
+% % to write down for a large set of propositional variables, and they convey no useful 
+% % structure to the user. In short, tables aren't a very useful probabilistic 
+% % programming language.
+
+% % It is much more convenient and usable 
+
+% \begin{exercise}[$\star$]
+%     Assume the following fully-factorized distribution on propositional variables:
+%     \begin{align*}
+%         [x \mapsto 0.1, \overline{x} \mapsto 0.9],\quad [y \mapsto 0.3, \overline{y} \mapsto 0.7].
+%     \end{align*}
+%     Use an exhaustive search tree to compute $\Pr(x \Leftrightarrow y)$.
+% \end{exercise}
+% \begin{exercise}[$\star\star$]
+%     Prove Algorithm~\ref{alg:rec} correct.
+% \end{exercise}
 
 
 \bibliographystyle{plainnat}

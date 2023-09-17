@@ -15,7 +15,7 @@
 computations in a form comprehensible to both people and machines.'' \citet{harper2016practical}}
 
 
-Today we will see an example of our first ``probabilistic programming
+The goal of these next 3 lectures is to build our our first ``probabilistic programming
 language''. I put that in quotes because it is not going to look like a typical
 programming language like C or Java. We will build our way up to programming
 languages that look more familiar to you, but today we will encounter a ``baby''
@@ -304,7 +304,7 @@ logic by combining propositional variables
 unary negation $\neg$, and bi-implication $\Leftrightarrow$):\sidenote{This style of grammar 
 is often called Backus-Naur style.}
 \begin{align}
-    \varphi, \alpha, \beta ::= V \mid \neg \varphi \mid \alpha \land \beta \mid 
+    \varphi, \alpha, \beta ::= V \mid \true \mid \false \mid \neg \varphi \mid \alpha \land \beta \mid 
     \alpha \lor \beta \mid \alpha \Rightarrow \beta \mid \alpha \Leftrightarrow \beta 
     \mid (\alpha)
 \end{align}
@@ -345,6 +345,8 @@ This will be our formal notion of semantics:
     I &\models \alpha \lor \beta & \text{ iff } I \models \alpha \text{ or } I \models \beta \\
     I &\models \alpha \Rightarrow \beta & \text{ iff } I \not{\models} \alpha \text{ or } I \models \beta \\
     I &\models \alpha \Leftrightarrow \beta & \text{ iff } I \models \alpha, I \models \beta \text{ or }  I \not{\models} \alpha, I \not{\models} \beta. \\
+    I &\models \true \\
+    I &\not{\models} \false \\
 \end{align*}
 \end{definition}
 Now we have a nice formal description of when a formula holds for a 

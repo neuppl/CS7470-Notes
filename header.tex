@@ -3,7 +3,7 @@
 \usepackage{graphicx} % allow embedded images
   \setkeys{Gin}{width=\linewidth,totalheight=\textheight,keepaspectratio}
   \graphicspath{{graphics/}} % set of paths to search for images
-\usepackage{amsmath,amssymb}  % extended mathematics
+\usepackage{amsmath,amssymb,amsthm}  % extended mathematics
 \usepackage{booktabs} % book-quality tables
 \usepackage{units}    % non-stacked fractions and better unit spacing
 \usepackage{multicol} % multiple column layout facilities
@@ -12,8 +12,12 @@
   \fvset{fontsize=\normalsize}% default font size for fancy-verbatim environments
 \usepackage{listings}
 \usepackage{tikz}
+\usepackage{mathpartir}
 \usepackage{mdframed}
 \usepackage{epigraph}
+\usepackage{enumitem}
+\usepackage{stmaryrd}
+
 \usepackage[ruled,linesnumbered]{algorithm2e}
 \SetKwComment{Comment}{/* }{ */}
 \newcommand{\indep}{\perp \!\!\! \perp}
@@ -66,8 +70,12 @@
 \lstset{style=mystyle}
 
 \newcommand{\defn}[1]{\textbf{#1}}
+\newcommand{\dbracket}[1]{\llbracket {#1} \rrbracket}
 \newcommand{\true}[0]{\texttt{true}}
 \newcommand{\false}[0]{\texttt{false}}
+\newcommand{\real}[0]{\mathbb{R}}
+\newcommand{\rational}[0]{\mathbb{Q}}
+\newcommand{\prop}[0]{\textsc{Prop}}
 
 
 % Standardize command font styles and environments
