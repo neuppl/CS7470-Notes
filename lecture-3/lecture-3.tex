@@ -331,7 +331,7 @@ $\dbracket{\Gamma \vdash (\varphi, w)} = \dbracket{\Gamma \vdash (\varphi \land 
 \dbracket{\Gamma \vdash (\varphi \land \neg x, w)}$.\marginnote{The proof of Shannon expansion 
 is a good exercise, and relies on splitting up the models of $\varphi$ into 2 sets.}
 Then, observe that $\dbracket{\Gamma \vdash (\varphi \land x), w} = w(x)(\true)
-\dbracket{\Gamma \vdash (\varphi[x \mapsto \true])}$ (this fact is not as straightforward
+\dbracket{\Gamma \vdash (\varphi[x \mapsto \true], w)}$ (this fact is not as straightforward
 to show as Shannon expansion, and proving it rigorously relies on a 
 full inductive definition of substitution, so we elide step for the time being). 
 
