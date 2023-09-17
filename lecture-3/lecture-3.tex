@@ -1,8 +1,9 @@
 \documentclass{tufte-handout}
 
-\title{Propositional Probability II: Reasoning\thanks{CS7470 Fall 2023: Foundations of Probabilistic Programming.}}
+\title{Propositional Probability II: A Propositional PPL\thanks{CS7470 Fall 2023: Foundations of Probabilistic Programming.}}
 
 
+\newcommand{\varset}[0]{\mathcal{V}}
 
 \author[]{Steven Holtzen\\s.holtzen@northeastern.edu}
 
@@ -29,11 +30,11 @@ need two more components:
 
 % We will explore answers to these questions today.
 
-% Let's tackle (1) first. What is an alternative representation of a distribution 
-% that avoids the space-explosion we saw in the lookup-table representation? We 
-% will need to be more clever about how we represent probabilities. One useful
-% choice is to assume that all random variables are \emph{independent from each other}, 
-% and therefore we can concisely describe a joint distribution over all of them:
+Let's tackle (1) first. What is an alternative representation of a distribution 
+that avoids the space-explosion we saw in the lookup-table representation? We 
+will need to be more clever about how we represent probabilities. One useful
+choice is to assume that all random variables are \emph{independent from each other}, 
+and therefore we can concisely describe a joint distribution over all of them:
 
 \begin{definition}[Fully factorized probabilistic model]
     Let $X_1, X_2, \cdots, X_n$ be jointly independent random variables (i.e.,
@@ -43,13 +44,22 @@ need two more components:
     as $\Pr(X_1, X_2, \cdots, X_n) \triangleq \prod_i^n \Pr(X_i)$.
 \end{definition}
 
-% Observe that a fully-factorized model only requires $O(\sum_i |X_i|)$ space,
-% which is significantly smaller than $|\Omega|$.\sidenote{The notation $|X|$
-% refers to the size of a random variable's co-domain.} This is a big improvement
-% over plain lookup tables, but it comes at a cost of expressivity: there are some
-% distributions that cannot be represented in a fully-factorized way.
+Observe that a fully-factorized model only requires $O(\sum_i |X_i|)$ space,
+which is significantly smaller than $|\Omega|$.\sidenote{The notation $|X|$
+refers to the size of a random variable's co-domain.} This is a big improvement
+over plain lookup tables, but it comes at a cost of expressivity: there are some
+distributions that cannot be represented in a fully-factorized way.
 
 \section{A Propositional PPL (\prop{})}
+\marginnote{These are fresh semantics and there may be bugs! If you see any let 
+me know.}
+\begin{itemize}
+  \item We will introduce a simple probabilistic programming language based on 
+  propositional logic called \prop{}.
+  \item The syntax of \prop{} has two parts: a query $\varphi$, written in 
+  propositional logic, and a fully-factorized distribution $w$ on propositional 
+  variables:
+\end{itemize}
 Syntax of \prop{}:
 \begin{lstlisting}[mathescape=true]
 $\varphi ::= x \mid \varphi \land \varphi \mid \varphi \lor \varphi \mid \neg \varphi \mid \true \mid \false$ 
@@ -63,53 +73,93 @@ Example \prop{} program:
 ($x \lor y$, [$x \mapsto 0.1, y \mapsto 0.2$])
 \end{lstlisting}
 
-We will assume that all well-formed \prop{} programs give a probability to each
-variable, and in those note we will restrict ourselves to considering
-well-formed programs. 
-
 \begin{itemize}
-  \item Denotational semantics of \prop{}: we want to associate every program in
-  \prop{} with the probability that $\varphi$ holds according to the fully-factorized distribution 
-  described by $w$
-  \item \defn{Goal}: Define a map $\dbracket{\cdot} : \texttt{p} \rightarrow [0,1]$ that is a map from 
-  \prop{} terms to real values. \marginnote{For more on the history and context of different 
+
+  \item In order to interpret programs, we need to define a \defn{propositional
+  universe}, which tells us which propositional variables the program is defined
+  over. We denote this universe $\Gamma$, which is a finite set of propositional
+  variables.
+
+  \item A syntactic term in \prop{} is \defn{well-typed by universe $\Gamma$} if every
+  propositional variable that is free in \prop{} can is in $\Gamma$. If a term
+  is well-typed by $\Gamma$, we write $\Gamma \vdash \texttt{p}$. We can
+  formalize this description of $\Gamma$ inductively on \prop{} programs. First,
+  we describe whether or not a propositional term is well-typed, $\Gamma \vdash
+  \varphi$:
+  \begin{mathpar}
+    \inferrule{}{\Gamma \vdash \true} \and \inferrule{}{\Gamma \vdash \false} \and
+    \inferrule{x \in \Gamma}{\Gamma \vdash x} \\
+    \inferrule{\Gamma \vdash \alpha \and \Gamma \vdash \beta}{\Gamma \vdash \alpha \land \beta}
+  \end{mathpar}
+  The rest of the propositional connectives proceed similarly.
+
+  \item Similarly, we can type the $w$ terms:
+   \begin{mathpar}
+    \inferrule{x \in \Gamma \and \Gamma \vdash r}{\Gamma \vdash [x \mapsto \theta, r]} \and 
+    \inferrule{}{\Gamma \vdash []}
+  \end{mathpar}
+ 
+  \item Finally, we can type programs:
+  \begin{mathpar}
+    \inferrule{\Gamma \vdash \varphi \and \Gamma \vdash w}{\Gamma \vdash (\varphi, w)}
+  \end{mathpar}
+
+  \item We can interpret a propositional universe $\Gamma$ as the set of all
+  propositional instances that can be formed from variables in $\Gamma$; we 
+  write this set as $\dbracket{\Gamma}$.
+  
+\end{itemize}
+
+\subsection{Denotational semantics}
+\begin{itemize}
+  \item Denotational semantics of \prop{}: we want to associate every well-typed
+  program in \prop{} with the probability that $\varphi$ holds according to the
+  fully-factorized distribution described by $w$
+
+
+  \item \defn{Goal}: Define a map $\dbracket{\Gamma \vdash \texttt{p}} : [0,1]$ that maps well-typed terms from 
+  \prop{} to real values. \marginnote{For more on the history and context of different 
   styles of semantics, see \citet[Chapter 3]{pierce2002types}}
   \item We will need semantics for $\varphi$ and the map $m$ in order to
   interpret \texttt{p}. 
   They have the following types:
   \begin{itemize}
-    \item $\dbracket{\varphi}$ maps propositional formulae to the set of all instances that model them
-    \item $\dbracket{w}$ produces a map from literals (propositional variables 
-    and a truth assignment) to real values
+    \item $\dbracket{\Gamma \vdash \varphi}$ maps propositional formulae to the
+    set of all instances that model them over universe drawn from $\Gamma$:
+    \begin{align}
+     \dbracket{\Gamma \vdash \varphi} &\triangleq \{I \in \dbracket{\Gamma} \mid I \models \varphi \}
+    \end{align}
+    \item $\dbracket{\Gamma \vdash w} : \Gamma \rightarrow \bool \rightarrow [0, 1]$ produces a
+    map from assignments to propositional variables to real values:
   \end{itemize}
   \begin{align}
-    \dbracket{\varphi} &\triangleq \{I \mid I \models \varphi\}\\
-    \dbracket{[x \mapsto \theta, \cdots]}(x) &\triangleq \theta\\
-    \dbracket{[x \mapsto \theta, \cdots]}(\overline{x}) &\triangleq 1-\theta\\
-    \dbracket{[]}(x) &\triangleq 0 \\
-    \dbracket{[y \mapsto \theta_y, r]}(x) &\triangleq \dbracket{[r]}(x)
+    \dbracket{\Gamma \vdash [x_1 \mapsto \theta_1, \dots, x_n \mapsto \theta_n]}(x_i)(\true) &\triangleq \theta_i\\
+    \dbracket{\Gamma \vdash [x_i \mapsto \theta_1, \dots, x_n \mapsto \theta_n]}(x_i)(\false) &\triangleq 1-\theta_i
   \end{align}
   We need to assume a propositional universe so that these equations are well-defined.
   Assume that all instances are defined on all free variables in $\texttt{p}$.
-  \item We define the probability of an instance $\dbracket{w}(I)$ as the product of probabilities 
-  of each variable in the instance. For instance,
+  \item For notational convenience we define the probability of an instance $\dbracket{\Gamma \vdash w}(I)$
+  as the product of probabilities of each variable in the instance. For
+  instance,
   \begin{align*}
     \dbracket{(x \mapsto 0.1, y \mapsto 0.3)}(x, \overline{y}) = 
     0.1 * 0.7.
   \end{align*}
-  Note that we are interpreting the probability of a negated variable as 
-  1 minus the probability of the positive variable.
+  Formally, we will write:
+  \begin{align}
+    \dbracket{\Gamma \vdash w}(I) = \prod_{[x_i \mapsto v] \in I}\dbracket{w}(x_i)(v)
+  \end{align}
   \item Now we are ready to interpret \prop{} programs as the sum of the probabilities 
   of each model:
   \begin{align}
-    \dbracket{(\varphi, w)} \triangleq \sum_{I \in \dbracket{\varphi}} \prod_{\ell \in I} \dbracket{w}(\ell).
+    \dbracket{\Gamma \vdash (\varphi, w)} \triangleq \sum_{I \in \dbracket{\Gamma \vdash \varphi}} \dbracket{\Gamma \vdash w}(I).
   \end{align}
-
 \end{itemize}
 
 \begin{itemize}
   \item Is this a \emph{useful} PPL? What kinds of programs 
-  can we write in it?
+  can we write in it? Exercise: write a \prop{} program that 
+  computes the probability that a dice roll is even.
 \end{itemize}
 
 \section{Big-step semantics}
@@ -142,9 +192,10 @@ well-formed programs.
 
 \subsection{Evaluating queries via search}
 \begin{itemize}
-    \item \emph{Idea}: We want to \emph{search} through the space of models of
-    the formula to potentially avoid exploring all possible worlds. Aim for better 
-    average-case/common-case behavior than the naive table enumeration.
+  \item Need to avoid worst-case exponential behavior.
+  \item \emph{Idea}: We want to \emph{search} through the space of models of
+  the formula to potentially avoid exploring all possible worlds. Aim for better 
+  average-case/common-case behavior than the naive table enumeration.
     
 \begin{tikzpicture}
     [
@@ -178,9 +229,7 @@ well-formed programs.
     \item Define $\varphi[x \mapsto v]$ as the substitution where we replace all
     instances of $x$ with the value $v \in \{\true, \false\}$ in $\varphi$, and
     ``simplify'' $\varphi$ by evaluating connectives until either (1) there are no more 
-    $\true$ or $\false$ constants, or (2) the formula is equal to $\true$ or $\false$. \marginnote{We are being a 
-    bit informal here to save time. If we have time, we can discuss this substitution 
-    operation more formally.}
+    $\true$ or $\false$ constants, or (2) the formula is equal to $\true$ or $\false$. 
     \\
     Example: $(x \lor y)[x \mapsto \true] = y$.
 
@@ -202,6 +251,9 @@ well-formed programs.
     }{(x :: \pi, (\varphi, w)) \Downarrow^e w(x)v_1 + w(\overline{x}) v_2} \\
 \end{mathpar}
 
+  Here we are being a bit loose with the weight function $w$; we can give an evaluation 
+  semantics for $w$ as well, but assume for now that we can look up the weight of $x$ and 
+  $\overline{x}$.
 
 
   \item Example derivation tree for our running example for the order $\pi = [x, y]$ 
@@ -218,56 +270,146 @@ well-formed programs.
   tree.
 \end{itemize}
 
-
 \begin{theorem}
   Let \texttt{p} be \prop{} program and $\pi$ be an ordering on all 
-  variables in \texttt{p}, and $\Pr$ be a fully-factorized joint 
-  distribution on all variables in $\varphi$. 
+  variables in \texttt{p}, and let $\Gamma \vdash \texttt{p}$. 
   If $(\pi, \texttt{p}) \Downarrow v$, then
-   $\dbracket{\texttt{p}} = v$.
+  $\dbracket{\Gamma \vdash \texttt{p}} = v$.
 \end{theorem}
+
+% To prove this theorem we will need the following \emph{extensionality property},
+% gives some conditions on which two propositional terms that are both well-typed 
+% always have identical denotation:
+% \begin{lemma}[Extensionality]
+%   If $\Gamma_1 \subseteq \Gamma_2$ and $\Gamma_1 \vdash (\varphi, w)$, then
+%   $\dbracket{\Gamma_1 \vdash (\varphi, w)} = \dbracket{\Gamma_2 \vdash (\varphi, w)}$.
+% \end{lemma}
+% \begin{proof}
+%   The proof is by induction on $|\Gamma_2|$.
+%   \begin{itemize}
+%     \item Base case: Assume $|\Gamma_1| = |\Gamma_2|$. Then
+%     by definition $\Gamma_1 = \Gamma_2$, so the claim follows.
+%     \item Induction: Assume $\Gamma_1 \subseteq \Gamma$
+%     and that $\dbracket{\Gamma \vdash (\varphi,
+%     w)} = \dbracket{\Gamma_1 \vdash (\varphi, w)}$. Then, show that
+%     $\dbracket{\Gamma \cup \{x\} \vdash (\varphi, w)} = \dbracket{\Gamma
+%     \vdash (\varphi, w)}$. 
+
+    
+%     We proceed:
+%     \begin{align*}
+%       \dbracket{\Gamma \cup \{x\} \vdash (\varphi, w)} &= 
+%       \sum_{I \in \dbracket{\Gamma \cup \{x\} \models \varphi}} \dbracket{\Gamma \cup \{x\} \vdash w}(I)\\
+%       &= \sum_{I \cup [x \mapsto \true] \in \dbracket{\Gamma \vdash \varphi}} \dbracket{\Gamma \vdash w}(I)
+%     \end{align*}
+%     To use our inductive hypothesis we need to break $\dbracket{\Gamma \vdash \varphi}$ up 
+%     into smaller pieces. We can do this by observe that
+%   \end{itemize}
+% \end{proof}
+
+% Now we can prove the main theorem:
+
 \begin{proof}
   We will show this by structural induction on \texttt{p}. 
   The base cases are straightforward: If $\texttt{p} = (\true, w)$, then 
-  $(\pi, (\true, w)) \Downarrow^e 1$. By definition, $\dbracket{(\true, w)} = \sum_{I \models \true} w(I) = 1$; 
+  $(\pi, (\true, w)) \Downarrow^e 1$. By definition, $\dbracket{\Gamma \vdash (\true, w)} = \sum_{I \in \dbracket{\Gamma \vdash \true}} w(I) = 1$; 
   similar for the false case.
 
-  Induction hypothesis (IH): Let $(x::\pi, (\varphi[x \mapsto \true], w)) \Downarrow^e v_1$ and 
-  $(x::\pi, (\varphi[x \mapsto \false], w)) \Downarrow^e v_2$, and $(\pi, (\varphi, w)) \Downarrow^e v$. Assume by induction that 
-  $v_1 = \dbracket{(\varphi[x \mapsto \false], w)}$ and $v_2 = \dbracket{(\varphi [x \mapsto \true], w)}$. Then, 
-  \begin{align*}
-    \dbracket{(\varphi, w)} &= \sum_{I \in \dbracket{\varphi}} w(I) \\ 
-    &= \underbrace{\sum_{\{I \mid I \in \dbracket{\varphi}, I(x) = \true\}} w(I)}_{(A)} + 
-\underbrace{\sum_{\{I \mid I \in \dbracket{\varphi}, I(x) = \false\}} w(I)}_{(B)}
-    % &= \sum_{\{ I \mid I \models \varphi, I(x) = \true \}} \Pr(I) + 
-    % \sum_{\{ I \mid I \models \varphi, I(x) = \false\}} \Pr(I)\\
-    % &= \\
-    % &= \Pr(x) \sum_{\{ I \mid I \models \varphi, I(x) = \true \}} \Pr(I \setminus \{x\}) + 
-    % \Pr(\overline{x})\sum_{\{ I \mid I \models \varphi, I(x) = \false\}} \Pr(I \setminus \{x\}) \\
-    % &= \Pr(x) \Pr(\varphi[x \mapsto \true]) + \Pr(\overline{x}) \Pr(\varphi[x \mapsto \false])\\
-    % &= \Pr(x) v_1 + \Pr(\overline{x}) v_2.
-  \end{align*}
+  Induction hypothesis (IH): Let $(x::\pi, (\varphi[x \mapsto \true], w))
+  \Downarrow^e v_1$ and $(x::\pi, (\varphi[x \mapsto \false], w)) \Downarrow^e
+  v_2$, and $(\pi, (\varphi, w)) \Downarrow^e v$. Assume by induction that $v_1
+  = \dbracket{\Gamma \vdash (\varphi[x \mapsto \false], w)}$ and $v_2 =
+  \dbracket{\Gamma \vdash (\varphi [x \mapsto \true], w)}$. 
+  
+  We are done if we can show that
+$\dbracket{\Gamma \vdash (\varphi, w)} =
+\dbracket{w}(x)(\true)\dbracket{\Gamma \vdash (\varphi[x \mapsto \true], w)} +
+\dbracket{w}(x)(\false)\dbracket{\Gamma \vdash (\varphi[x \mapsto \false], w)}$.
 
-Example: consider the formula $x \lor y$. Then: \begin{align*} \dbracket{(x \lor
-y, w)} = \underbrace{w(xy) + w(x\overline{y})}_{(A)} +
-\underbrace{w(\overline{x}y)}_{(B)} \end{align*}
+To make progress we need to apply \emph{Shannon expansion}: it is always the case that 
+$\dbracket{\Gamma \vdash (\varphi, w)} = \dbracket{\Gamma \vdash (\varphi \land x, w)} + 
+\dbracket{\Gamma \vdash (\varphi \land \neg x, w)}$.\marginnote{The proof of Shannon expansion 
+is a good exercise, and relies on splitting up the models of $\varphi$ into 2 sets.}
+Then, observe that $\dbracket{\Gamma \vdash (\varphi \land x), w} = w(x)(\true)
+\dbracket{\Gamma \vdash (\varphi[x \mapsto \true])}$ (this fact is not as straightforward
+to show as Shannon expansion, and proving it rigorously relies on a 
+full inductive definition of substitution, so we elide this proof the time being). 
 
-Since $v = w(x) v_1 + w(\overline{x})v_2 = w(x) \dbracket{(\varphi[x \mapsto \true], w)} + 
-w(\overline{x}\dbracket{(\varphi[x \mapsto \false], w)})$ by IH, we are done if we can show that 
-$(A) = w(x) \dbracket{(\varphi[x \mapsto \true], w)}$ and $(B) =
-w(\overline{x})\dbracket{(\varphi[x \mapsto \false], w)}$.
+  % Then, 
+  % \begin{align*}
+  %   \dbracket{\Gamma \vdash (\varphi, w)} &= \sum_{I \in \dbracket{\Gamma \vdash \varphi}} \dbracket{\Gamma \vdash w}(I)
+    % &= \sum_{\{I \in \dbracket{\varphi \land x}\}} w(I) + 
+    % \sum_{\{I \in \dbracket{\varphi \land \overline{x}}\}} w(I) \\ 
+  % \end{align*}
 
-To show this observe that after substituting, $x$ is no longer in $\varphi[x \mapsto v]$. 
-Example:
-\begin{align*}
-  \dbracket{(x \lor y)[x \mapsto \false]} &= \dbracket{y} = w(xy) + w(\overline{x}y)\\ 
-  \dbracket{(x \lor y)[x \mapsto \true]} &= \dbracket{\true}
-\end{align*}
-Clearly there are permitted models after we restrict in this way. But, due to the 
-factorization of $w$, we can prove that:
-\begin{align*}
-  \dbracket{(\varphi[x \mapsto v], w)} = w(x)\dbracket{(\varphi, w)}.
-\end{align*}
+
+
+% Then, if we can show that $\dbracket{\varphi \land x, w} =
+% w(x)\dbracket{\varphi[x \mapsto \true], w} =w(x)v_1$ (and analogously for the false
+% case), then we are done. One way to show this is by induction on the structure of 
+% terms in propositional logic (we could also make a model-based argument; it's a good exercise 
+% to think about what that proof would look like). Here is the structural induction argument for 
+% practice.
+
+% \begin{lemma}
+%   $\dbracket{\Gamma \vdash (\varphi \land x, w)} = w(x)\dbracket{\Gamma \vdash (\varphi[x \mapsto \true], w)}$.
+% \end{lemma}
+% Base cases: 
+% \marginnote{This argument is made more cumbersome 
+%   by the fact that the size of our propositional universe is implicit in our definition of $\dbracket{\cdot}$.}
+% \begin{itemize}
+%   \item $\varphi = \true$. Then, 
+%   \begin{align*}
+%     \dbracket{ \true \land x, w} = \dbracket{x, w} =^{\star} w(x) = w(x)\dbracket{\true[x \mapsto \true], w}
+%   \end{align*}
+%   Showing the equality marked $\star$ is the crucial step. To show we can use another 
+%   tiny inductive argument on the size of our propositional universe $N$ (i.e., the 
+%   number of propositional variables). 
+%   \begin{itemize}
+%     \item Assume $N=1$. Then, $\dbracket{x, w} = $
+%     \item Inductive hypothesis: 
+%   \end{itemize}
+  % \begin{align*}
+  %   \dbracket{x} = \sum_{I \in \dbracket{x}} w(I) = \sum_{I \in \dbracket{x}} \prod_{ \ell \in I} w(\ell), 
+  % \end{align*}
+  % where $\ell$ is an individual variable assignment in the instance $I$, and
+  % $w(\ell)$ is the probability given that that assignment by $w$. Then, we can continue the above 
+  % by reordering:
+  % \begin{align*}
+  %   \sum_{I \in \dbracket{x}} \prod_{ \ell \in I} w(\ell) &= 
+  %   \sum_{I \in \dbracket{x}} \prod_{\ell \in I} w(\ell)
+  % \end{align*}
+%   \item $\varphi = \false$. Then, $\dbracket{ \false \land x} = \dbracket{\false} = 0 = w(x)\dbracket{\false[x \mapsto \true]}$.
+%   \item $\varphi = x$. Then, $\dbracket{ x \land x} = \dbracket{x} = w(x) = w(x)\dbracket{x[x \mapsto \true]}$\\
+%   \item $\varphi = y$. Then, $\dbracket{ x \land y} = w(x)w(y) = w(x)\dbracket{x \land y[x \mapsto \true]}$
+% \end{itemize}
+
+% Now for the inductive cases. 
+
+
+
+% Example: consider the formula $x \lor y$. Then: \begin{align*} \dbracket{(x \lor
+% y, w)} = \underbrace{w(xy) + w(x\overline{y})}_{(A)} +
+% \underbrace{w(\overline{x}y)}_{(B)} \end{align*}
+
+% Since $v = w(x) v_1 + w(\overline{x})v_2 = w(x) \dbracket{(\varphi[x \mapsto \true], w)} + 
+% w(\overline{x}\dbracket{(\varphi[x \mapsto \false], w)})$ by IH, we are done if we can show that 
+% $(A) = w(x) \dbracket{(\varphi[x \mapsto \true], w)}$ and $(B) =
+% w(\overline{x})\dbracket{(\varphi[x \mapsto \false], w)}$.
+
+% To show this observe that after substituting, $x$ is no longer in $\varphi[x \mapsto v]$. 
+% Example:
+% \begin{align*}
+%   \dbracket{(x \lor y)[x \mapsto \false]} &= \dbracket{y}\\
+%   &= w(xy) + w(\overline{x}y) \\
+%   &= w(x)w(y) + w(\overline{x})w(y)\\ 
+%   &= w(y)
+% \end{align*}
+% As the above calculuation shows, due to the factorization of $w$, we can prove
+% that:
+% \begin{align*}
+%   \dbracket{(\varphi[x \mapsto \true], w)} = w(x)\dbracket{(\varphi, w)}.
+% \end{align*}
 
 \end{proof}
 
@@ -278,20 +420,21 @@ factorization of $w$, we can prove that:
   semantics? It will be linear-time for any order; a big improvement over the 
   exhaustive enumeration!
 
-  \item However, what about a formula like $(a \land b) \lor (c \land d)$?
+  \item However, what about a formula like $(a \land b) \lor (c \land d)$? We will see how to 
+  handle this case next time.
 \end{itemize}
 
-\section{Memoization}
+% \section{Memoization}
 
-\begin{itemize}
-  \item This process is sometimes also called \emph{variable elimination}
-  \item Add a context to the reduction relation $\rho: \varphi \rightarrow [0,
-  1]$ that maps formulae to their probability of being true
-  \item Relation now has the shape:
-  \begin{align*}
-    (\pi, \rho, \texttt{p}) \Downarrow^m (\real, \rho')
-  \end{align*}
-\end{itemize}
+% \begin{itemize}
+%   \item This process is sometimes also called \emph{variable elimination}
+%   \item Add a context to the reduction relation $\rho: \varphi \rightarrow [0,
+%   1]$ that maps formulae to their probability of being true
+%   \item Relation now has the shape:
+%   \begin{align*}
+%     (\pi, \rho, \texttt{p}) \Downarrow^m (\real, \rho')
+%   \end{align*}
+% \end{itemize}
 
 
 
