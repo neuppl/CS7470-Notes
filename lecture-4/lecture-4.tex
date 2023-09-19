@@ -169,23 +169,38 @@ identical to \prop{} for \prop{}$_S$
   Assume $p_S \Downarrow^e (v, n)$. Then, $n \le 1 + |p_S|$.
 \end{theorem}
 
-\includegraphics[width=250px]{searchtree.png}
+% \includegraphics[width=250px]{searchtree.png}
 \begin{proof}
   By structural induction on $(\varphi, w)$, inducting on $\varphi$. 
   Base cases are easy: $(\true, w) \Downarrow (1, 1) \le 1 + 1$.
 
   Now let's handle $((x \land \varphi_1) \lor (\neg x \land \varphi_2))$. 
-  Assume by induction that $\varphi_1 \Downarrow (v_1, n_1)$, $\varphi_2 \Downarrow (v_2, n_2)$,
+  Assume by induction that $\varphi[\true/x] \Downarrow (v_1, n_1)$, $\varphi[\false/x] \Downarrow (v_2, n_2)$,
   and $n_1 \le 1 + |\varphi_1|$ and $n_2 \le 1 + |\varphi_2|$.
 
   Then, by applying the \textsc{(Split)} rule:
   \begin{mathpar}
-  \inferrule{\varphi_1 \Downarrow (v_1, n_1) \and \varphi_2 \Downarrow (v_2, n_2)}
+  \inferrule{\varphi[\true/x] \Downarrow (v_1, n_1) \and \varphi[\false/x] \Downarrow (v_2, n_2)}
   {((x \land \varphi_1) \lor (\neg x
   \land \varphi_2)) \Downarrow^e (w(x) v_1 + w(\overline{x})v_2, 1 + n_1 + n_2)}
   \end{mathpar}
-  Now we want to conclude that $n_1 + n_2 \le |\varphi|$.
-  Finally, conclude by observing that $n_1 + n_2 \le 1 + |\varphi_1| + 1 + |\varphi_2| \le |(x \land \varphi_1) \lor (\neg x \land \varphi_2)| = |\varphi|$.
+  Now we are done if we can conclude that $n_1 + n_2 \le |\varphi|$.
+  Continuing:
+  \begin{align}
+   n_1 + n_2 &\le 1 + |\varphi[\true/x]| + 1 + |\varphi[\false/x]| & \text{by I.H.}\\
+    & \le 1 + |\varphi_1[\true/x]| + 1 + |\varphi_2[\false/x]| & (\star) \\
+    & \le 1 + |\varphi_1| + 1 + |\varphi_2| & (\star\star) \\
+    & \le |(x \land \varphi_1) \lor (\neg x \land \varphi_2) & (\dagger)
+  \end{align}
+  where $(\star)$ follows from $\varphi[\true/x] = (x \land
+  \varphi_1) \lor (\neg x \land \varphi_2)[\true/x] = \varphi_1[\true/x]$;
+  
+  $(\star\star)$ follows from a simple lemma:
+  substitution can only reduce 
+  the size of the formula, i.e. $|\varphi[v/x]| \le |\varphi|$ for any 
+  variable $x$ and value $v$.
+
+  $(\dagger)$ follows from the definition of $|\cdot|$.
 \end{proof}
 
 \subsection{Semantics-preserving translations}
