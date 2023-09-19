@@ -31,6 +31,82 @@
   dummy/.style    = {circle,draw}
 }
 
+% tikz
+\usetikzlibrary{patterns,calc,backgrounds}
+
+
+% TIKZ
+\tikzstyle{nnf}=[
+  >=stealth,font=\small,auto,scale=0.7,every node/.style={scale=0.7}
+]
+\tikzstyle{extnode}=[
+  draw,circle,inner sep=2pt,fill=white
+]
+
+\tikzstyle{leafnode}=[
+  draw,fill=gray!20,inner sep=3.5pt
+]
+\tikzstyle{constnode}=[
+  draw,fill=white,inner sep=3.5pt
+]
+\tikzstyle{label}=[
+  fill=white,inner sep=2.5pt
+]
+
+\tikzstyle{acarrow}=[
+    decoration={markings,mark=at position 1 with {\arrow[scale=0.6]{>}}},
+    postaction={decorate},
+    shorten >=0.4pt,
+    >=latex,
+    line width=0.1
+]
+
+\tikzstyle{bnarrow}=[
+    decoration={markings,mark=at position 1 with {\arrow[scale=1.5]{>}}},
+    postaction={decorate},
+    shorten >=0.7pt,
+    >=latex,
+    line width=0.3
+]
+\tikzstyle{bayesnet}=[
+  >=latex, thick, auto
+]
+\tikzstyle{bnnode}=[
+  draw,ellipse,minimum size=7mm,inner sep=1pt,font=\small
+]
+\tikzstyle{cpt}=[
+  font=\footnotesize
+]
+
+\tikzstyle{graph}=[
+  >=stealth,font=\small,auto,scale=1,every node/.style={scale=1}
+]
+\tikzstyle{node}=[
+  draw,circle,inner sep=3pt,fill=white
+]
+
+% BDDs
+
+\tikzstyle{bdd}=[
+  >=latex, thick, >=stealth, font=\small,auto,scale=0.9,every node/.style={scale=0.9}
+]
+\tikzstyle{bddnode}=[
+  draw,circle,inner sep=0pt,fill=white,minimum size=5.5mm
+]
+
+\tikzstyle{highedge}=[
+    line width=0.9
+]
+\tikzstyle{lowedge}=[
+    line width=0.9,dotted
+]
+\tikzstyle{bddterminal}=[
+  draw,fill=gray!20,inner sep=2.5pt, font=\small
+]
+
+\lstdefinestyle{compact}{
+  \ttfamily\tiny
+}
 
 
 \usetikzlibrary{positioning}
@@ -71,13 +147,15 @@
 \lstset{style=mystyle}
 
 \newcommand{\defn}[1]{\textbf{#1}}
-\newcommand{\dbracket}[1]{\llbracket {#1} \rrbracket}
+\newcommand{\dbracket}[1]{\left \llbracket {#1} \right \rrbracket}
 \newcommand{\true}[0]{\texttt{true}}
 \newcommand{\false}[0]{\texttt{false}}
 \newcommand{\real}[0]{\mathbb{R}}
 \newcommand{\rational}[0]{\mathbb{Q}}
 \newcommand{\bool}[0]{\mathbb{B}}
 \newcommand{\prop}[0]{\textsc{Prop}}
+\newcommand{\bdd}[0]{\textsc{Bdd}}
+\newcommand{\compiles}[0]{\rightsquigarrow}
 
 
 % Standardize command font styles and environments
