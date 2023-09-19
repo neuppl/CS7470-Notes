@@ -172,7 +172,7 @@ identical to \prop{} for \prop{}$_S$
 % \includegraphics[width=250px]{searchtree.png}
 \begin{proof}
   By structural induction on $(\varphi, w)$, inducting on $\varphi$. 
-  Base cases are easy: $(\true, w) \Downarrow (1, 1) \le 1 + 1$.
+  Base cases are easy: $(\true, w) \Downarrow (1, 1)$ and $1 \le 1 + 1$.
 
   Now let's handle $((x \land \varphi_1) \lor (\neg x \land \varphi_2))$. 
   Assume by induction that $\varphi[\true/x] \Downarrow (v_1, n_1)$, $\varphi[\false/x] \Downarrow (v_2, n_2)$,
