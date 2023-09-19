@@ -188,9 +188,9 @@ identical to \prop{} for \prop{}$_S$
   Continuing:
   \begin{align}
    n_1 + n_2 &\le 1 + |\varphi[\true/x]| + 1 + |\varphi[\false/x]| & \text{by I.H.}\\
-    & \le 1 + |\varphi_1[\true/x]| + 1 + |\varphi_2[\false/x]| & (\star) \\
+    & = 1 + |\varphi_1[\true/x]| + 1 + |\varphi_2[\false/x]| & (\star) \\
     & \le 1 + |\varphi_1| + 1 + |\varphi_2| & (\star\star) \\
-    & \le |(x \land \varphi_1) \lor (\neg x \land \varphi_2)| & (\dagger)
+    & \le |(x \land \varphi_1) \lor (\neg x \land \varphi_2)|  & (\dagger)
   \end{align}
   where $(\star)$ follows from the definition of substitution, i.e. $\varphi[\true/x] = (x \land
   \varphi_1) \lor (\neg x \land \varphi_2)[\true/x] = \varphi_1[\true/x]$;
