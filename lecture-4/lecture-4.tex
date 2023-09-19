@@ -176,7 +176,7 @@ identical to \prop{} for \prop{}$_S$
 
   Now let's handle $((x \land \varphi_1) \lor (\neg x \land \varphi_2))$. 
   Assume by induction that $\varphi[\true/x] \Downarrow (v_1, n_1)$, $\varphi[\false/x] \Downarrow (v_2, n_2)$,
-  and $n_1 \le 1 + |\varphi_1|$ and $n_2 \le 1 + |\varphi_2|$.
+  and $n_1 \le 1 + |\varphi[\true/x]|$ and $n_2 \le 1 + |\varphi[\false/x]|$.
 
   Then, by applying the \textsc{(Split)} rule:
   \begin{mathpar}
