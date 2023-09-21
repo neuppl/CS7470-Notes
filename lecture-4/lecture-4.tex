@@ -33,14 +33,14 @@
   \begin{mathpar}
     \inferrule{
       \inferrule{
-        \inferrule*[Left=($\star$)]{\dots}{c \lor d \Downarrow^e v_3}
+        \inferrule*[Left=($\star$)]{\dots}{(c \lor d) \Downarrow^e v_2}
         \and
         \inferrule{}{\false \Downarrow^e 0}
       }
       {(b \land (c \lor d)) \Downarrow^e v_1}
       \and
       \inferrule*[Right=($\star$)]{\dots}
-      {(c \lor d)) \Downarrow^e v_2}
+      {(c \lor d) \Downarrow^e v_2}
       }
     {((a \lor b) \land (c \lor d)) \Downarrow^e w(a)v_1 + w(\overline{a})v_2}
   \end{mathpar}
@@ -283,7 +283,7 @@ identical to \prop{} for \prop{}$_S$
   \item \textbf{Problem}: \prop$_S${} is not very expressive
   \item \textbf{Goal:} More expressive tractable languages
   \item What can we improve about \prop$_S$? Observe that there may be 
-  \emph{repetitious sub-syntactic terms}, and we'd like to exploit those, just
+  \emph{repetitious syntactic subterms}, and we'd like to exploit those, just
   like we observed in our memoized reduction scheme
   \item How can we represent repetitious subterms syntactically? By changing our 
   syntax to permit \emph{directed acyclic graphs}!
