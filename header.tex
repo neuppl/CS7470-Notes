@@ -13,10 +13,13 @@
 \usepackage{listings}
 \usepackage{tikz}
 \usepackage{mathpartir}
+\usepackage{subcaption}
 \usepackage{mdframed}
 \usepackage{epigraph}
 \usepackage{enumitem}
 \usepackage{stmaryrd}
+\usetikzlibrary{shapes.geometric}
+
 
 \usepackage[ruled,linesnumbered]{algorithm2e}
 \SetKwComment{Comment}{/* }{ */}
@@ -94,6 +97,10 @@
   draw,circle,inner sep=0pt,fill=white,minimum size=5.5mm
 ]
 
+\tikzstyle{bddtriangle}=[
+  draw, regular polygon, regular polygon sides = 3,inner sep=1pt,fill=white,minimum size=5.5mm
+]
+
 \tikzstyle{highedge}=[
     line width=0.9
 ]
@@ -113,6 +120,7 @@
 
 \newtheorem{theorem}{Theorem}
 \newtheorem{definition}{Definition}
+\newtheorem{conjecture}{Conjecture}
 \newtheorem{lemma}{Lemma}
 \newtheorem{exercise}{Exercise}
 \newtheorem{remark}{Remark}
@@ -152,10 +160,23 @@
 \newcommand{\false}[0]{\texttt{false}}
 \newcommand{\real}[0]{\mathbb{R}}
 \newcommand{\rational}[0]{\mathbb{Q}}
+\newcommand{\prog}[0]{\texttt{p}}
 \newcommand{\bool}[0]{\mathbb{B}}
 \newcommand{\prop}[0]{\textsc{Prop}}
 \newcommand{\bdd}[0]{\textsc{Bdd}}
+\newcommand{\robdd}[0]{\textsc{Robdd}}
 \newcommand{\compiles}[0]{\rightsquigarrow}
+
+\newcommand{\bddtriangle}[1]{
+    \begin{tikzpicture}
+    \node [bddtriangle] {#1};
+    \end{tikzpicture}}
+\newcommand{\bddtrue}[0]{\begin{tikzpicture}
+      \node [bddterminal] {$\true$};
+    \end{tikzpicture}}
+\newcommand{\bddfalse}[0]{\begin{tikzpicture}
+      \node [bddterminal] {$\false$};
+    \end{tikzpicture}}
 
 
 % Standardize command font styles and environments
