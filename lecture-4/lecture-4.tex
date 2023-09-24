@@ -1,6 +1,6 @@
 \documentclass{tufte-handout}
 
-\title{Propositional Probability IV:\\Binary Decision Diagrams\thanks{CS7470 Fall 2023: Foundations of Probabilistic Programming.}}
+\title{Propositional Probability III: Compilation\thanks{CS7470 Fall 2023: Foundations of Probabilistic Programming.\\Thanks John Li for comments on this note.}}
 
 
 \newcommand{\varset}[0]{\mathcal{V}}
@@ -15,243 +15,316 @@
 \begin{document}
 \maketitle% this prints the handout title, author, and date
 \begin{itemize}
-  \item Note: not class next Tuesday, Sept 26 (Software Day)
-  \item Join Slack, I make announcements there
+  \item \defn{Goal:} to evaluate terms from \prop{} as efficiently as possible
+  \item Last time we saw $(\pi, (\varphi, w)) \Downarrow^e v$. We observed that 
+  it is efficient (i.e., polynomial in $|\varphi|$) if $\varphi$ has specific 
+  forms: for instance, if it is a simple conjunction of variables. This time, we
+  will see some more sophisticated evaluation strategies
 \end{itemize}
 
-\section{Binary decision diagrams (BDDs)}
+\section{Memoization}
 \begin{itemize}
-  \marginnote{BDDs were introduced by \citet{bryant1992symbolic}. \citet{meinel1998algorithms} is a 
-  good reference for learning how to implement and analyze BDDs. \citet{knuth2013art} has a comprehensive 
-  discussion on BDDs as well.}
+
+  \item Consider the formula $(a \lor b) \land (c \lor d)$ and some $w$.
+
+  
+  \item Let's see a sketch of a derivation tree (where we elide $w$ and $\pi$
+  for now):
+  \begin{mathpar}
+    \inferrule{
+      \inferrule{
+        \inferrule*[Left=($\star$)]{\dots}{(c \lor d) \Downarrow^e v_2}
+        \and
+        \inferrule{}{\false \Downarrow^e 0}
+      }
+      {(b \land (c \lor d)) \Downarrow^e v_1}
+      \and
+      \inferrule*[Right=($\star$)]{\dots}
+      {(c \lor d) \Downarrow^e v_2}
+      }
+    {((a \lor b) \land (c \lor d)) \Downarrow^e w(a)v_1 + w(\overline{a})v_2}
+  \end{mathpar}
+
+  \item \textbf{Observe}: both of the subtrees marked by $(\star)$ are \emph{identical}.
+  We are wasting effort by re-deriving both. We should \emph{reuse} these derivations rather 
+  than recomputing them.
+
+  \item Now we will define a new reduction rule that memoizes previously computed results
+  \marginnote{So far we've considered \emph{tree-like} proof-systems
+  (also called \emph{Gentzen sequent calculus
+  \citep{gentzen1969investigations}}): these are systems of deductions that
+  describe trees, and cannot share sub-derivations.  There are more powerful
+  DAG-like proof-systems that permit the reusing of subderivations. If you are
+  interested in learning more about the power of various proof systems, check
+  out \citet{beame2001propositional}}
+
+  \item Shape of new relation: $(\rho, \texttt{p}) \Downarrow^m (v, \rho')$, where
+  $\rho$ is a memoization table that maps \prop{} programs to probabilities:
+
+  \begin{mathpar}
+    \inferrule{}{(\pi, \rho, (\true, w)) \Downarrow^m (1, \rho)}
+    \and
+    \inferrule{}{(\pi, \rho, (\false, w)) \Downarrow^m (0, \rho)}
+    \\
+    \inferrule*[Left=\textsc{(Memo)}]{
+    \rho(\varphi) = v \\
+    }{(\pi, \rho, (\varphi, w)) \Downarrow^e (v, \rho)} 
+    \\
+    \inferrule*[Left=\textsc{(Split)}]{
+    \varphi \notin \rho \\
+    (\pi, \rho, (\varphi[\true/x], w)) \Downarrow^m (\rho', v_1) \\
+    (\pi, \rho' \cup (\varphi[\true/x] \mapsto v_1), (\varphi[\false/x], w)) \Downarrow^m (\rho'',v_2) \\
+    }{(x::\pi, \rho, (\varphi, w))  \Downarrow^m (\rho''\cup (\varphi[\false/x] \mapsto v_2), w(x)v_1 + w(\overline{x}) v_2)} \\
+  \end{mathpar}
+
+\end{itemize}
+
+\subsection{Analysis of memoization}
+\begin{itemize}
+  \item What kinds of \prop{} programs does our new memoized reduction scale
+  well on?
+  \item For the purposes of analysis, it can be useful to give a
+  \emph{cost-annotated} version of our rules that counts how many derivations
+  were produced during runtime. This is fairly easy to do: we augment our relation 
+  with an integer $n$ that accumulates the total runtime, so our new 
+  relation is $(\pi, \rho, (\varphi, w)) \Downarrow (v, \rho', n)$:
+
+  \begin{mathpar}
+    \inferrule{}{(\pi, \rho, (\true, w)) \Downarrow^m (1, \rho, 1)}
+    \and
+    \inferrule{}{(\pi, \rho, (\false, w)) \Downarrow^m (0, \rho, 1)}
+    \\
+    \inferrule*[Left=\textsc{(Memo)}]{
+    \rho(\varphi) = v \\
+    }{(\pi, \rho, (\varphi, w)) \Downarrow^e (v, \rho, 1)} 
+    \\
+    \inferrule*[Left=\textsc{(Split)}]{
+    \varphi \notin \rho \\
+    (\pi, \rho, (\varphi[\true/x], w)) \Downarrow^m (\rho', v_1, n_1) \\
+    (\pi, \rho' \cup (\varphi[\true/x] \mapsto v_1), (\varphi[\false/x], w)) \Downarrow^m (\rho'',v_2, n_2) \\
+    }{(x::\pi, \rho, (\varphi, w))  \Downarrow^m (\rho''\cup (\varphi[\false/x] \mapsto v_2), w(x)v_1 + w(\overline{x}) v_2, n_1 + n_2 + 1)} \\
+  \end{mathpar}
+
+  \item Complexity in the \emph{elimination-width}, similar to variable
+  elimination (won't get into that now...)
+
+\end{itemize}
+
+\section{Tractable runtimes}
+\begin{itemize}
+  \item \textbf{Problem}: evaluating probabilities is hard for \emph{arbitrary
+  formulae}. What if we consider a \emph{restricted class} of formulae for which
+  there exists a runtime semantics that \emph{guaranteed to be efficient in
+  $|\varphi|$}? 
+  % \marginnnote{This definition of tractable runtime is inspired by
+  % \citet{darwiche2002knowledge}'s notion of a tractable language.}
+  \begin{definition}[Tractable runtime]
+    Let $p \Downarrow (v, n)$ be a cost-annotated big-step reduction relation
+    for some program $p$ written in language $L$. We call $\Downarrow$
+    a \defn{tractable runtime} if $n$ is polynomial in $(|\varphi|)$ for any program \texttt{p} 
+    written in $L$.
+  \end{definition}
+
+  \item We need to define a notion of size for \prop{} programs. Intuitively, the size 
+  simply counts how many syntactic constructs are utilized:
+  \begin{mathpar}
+    \inferrule{}{|\true| = 1} \and 
+    \inferrule{}{|\false| = 1} \and 
+    \inferrule{|\varphi| = n}{| \neg \varphi| = 1 + n} \and
+    \inferrule{}{|x| = 1} \\ 
+    \inferrule{|\alpha| = n_1 \and |\beta| = n_2}{|\alpha \land \beta| = 1 + |\alpha| + |\beta|}
+  \end{mathpar}
+  And so on similarly for other connectives.
+
+  \item Observe: neither $\Downarrow^e$ nor $\Downarrow^m$ are tractable runtimes. \\
+  \textbf{Exercise}: find a family of programs that witnesses this intractability for each 
+  language.
+  % Example family of programs that witnesses the intractability: exclusive-or programs\marginnote{
+  %   Recall that exclusive-or, $a \oplus b$, is a connective that is true if and only if 
+  %   $a$ and $b$ take on different values. It is macro-expressible in terms of $\lor$ and $\land$: 
+  %   ($a \oplus b) = (a \land \neg b) \lor (\neg a \land b)$
+  %   Also,
+  %   observe that $(a \oplus b \oplus c)[a/\false] = \neg(b \oplus c)$
+  % }
+
+% \begin{lstlisting}[mathescape=true] ($\bigoplus_i^n x_i$, [$x_i \mapsto 0.5$])
+% \end{lstlisting}
+
+  \item Can we come up with a suitable restriction to \prop{} that guarantees 
+  that $\Downarrow^e$ is a tractable runtime?
+
+  \item \textbf{Idea}, our first tractable runtime: restrict propositional terms
+  to be ``pre-split'' (or \emph{Shannon-expanded}). Call this language $\prop{}_{S}$:
+
+\begin{lstlisting}[mathescape=true]
+$\varphi_S, \alpha_S, \beta_S$ ::= true$_S$ | false$_S$ | $(x$_S$ \land \alpha_S) \lor (\neg x$_S$ \land \beta_S)$
+$w_S ::= [x_S \mapsto \theta_x, \cdots]$
+p$_S$ ::= ($\varphi_S, w_S$)
+\end{lstlisting}
+\item We define a cost-annotated enumeration relation $p_S \Downarrow^e (v, n)$ in a manner 
+identical to \prop{} for \prop{}$_S$
+\end{itemize}
+
+\begin{theorem}
+  Assume $p_S \Downarrow^e (v, n)$. Then, $n \le 1 + |p_S|$.
+\end{theorem}
+
+% \includegraphics[width=250px]{searchtree.png}
+\begin{proof}
+  By structural induction on $(\varphi, w)$, inducting on $\varphi$. 
+  Base cases are easy: $(\true, w) \Downarrow (1, 1)$ and $1 \le 1 + 1$.
+
+  Now let's handle $((x \land \varphi_1) \lor (\neg x \land \varphi_2))$. 
+  Assume by induction that $\varphi[\true/x] \Downarrow (v_1, n_1)$, $\varphi[\false/x] \Downarrow (v_2, n_2)$,
+  and $n_1 \le 1 + |\varphi[\true/x]|$ and $n_2 \le 1 + |\varphi[\false/x]|$.
+
+  Then, by applying the \textsc{(Split)} rule:
+  \begin{mathpar}
+  \inferrule{\varphi[\true/x] \Downarrow (v_1, n_1) \and \varphi[\false/x] \Downarrow (v_2, n_2)}
+  {((x \land \varphi_1) \lor (\neg x
+  \land \varphi_2)) \Downarrow^e (w(x) v_1 + w(\overline{x})v_2, 1 + n_1 + n_2)}
+  \end{mathpar}
+  Now we are done if we can conclude that $n_1 + n_2 \le |\varphi|$.
+  Continuing:
+  \begin{align}
+   n_1 + n_2 &\le 1 + |\varphi[\true/x]| + 1 + |\varphi[\false/x]| & \text{by I.H.}\\
+    & = 1 + |\varphi_1[\true/x]| + 1 + |\varphi_2[\false/x]| & (\star) \\
+    & \le 1 + |\varphi_1| + 1 + |\varphi_2| & (\star\star) \\
+    & \le |(x \land \varphi_1) \lor (\neg x \land \varphi_2)|  & (\dagger)
+  \end{align}
+  where $(\star)$ follows from the definition of substitution, i.e. $\varphi[\true/x] = (x \land
+  \varphi_1) \lor (\neg x \land \varphi_2)[\true/x] = \varphi_1[\true/x]$;
+  
+  $(\star\star)$ follows from a simple lemma:
+  substitution can only reduce 
+  the size of the formula, i.e. $|\varphi[v/x]| \le |\varphi|$ for any 
+  variable $x$ and value $v$.
+
+  $(\dagger)$ follows from the definition of $|\cdot|$.
+\end{proof}
+
+\subsection{Semantics-preserving translations}
+\begin{itemize}
+  \item \textbf{Idea}: we can give a semantics-preserving translation from an
+  intractable language into a tractable one
+  \item Why would we want to do that?
+  \begin{itemize}
+    \item Abstraction: just like we don't want all programmers to program in
+    assembly, it's useful to identify good target languages
+    \item Modular reasoning: We can separate our efficiency argument into 2 stages: 
+    proving the target efficient, and proving the translation efficient (or characterizing 
+    the efficiency of the translation)
+  \end{itemize}
+  \item Compilation from \prop{} to \prop{}$_S$: define a relation $\rightsquigarrow$ 
+  that translates each term in each language while preserving semantics:
+
+  \begin{figure}[h]
+   \begin{mathpar}
+    \inferrule{}{\true \compiles \true_S} 
+    \and  
+    \inferrule{}{\false \compiles \false_S} 
+    \and
+    \inferrule{}{x \compiles x_S} 
+    \\
+    \inferrule{x \text{ free in } \varphi \and
+    \varphi[\true/x] \compiles \varphi_1 \and 
+    \varphi[\false/x] \compiles \varphi_2
+    }{\varphi \rightsquigarrow (x_S \land \varphi_1) \lor (\neg x_S \land \varphi_2)} 
+  \end{mathpar}
+   \caption{Compilation from \prop{} to \prop{}$_S$.}
+   \label{fig:compile}
+  \end{figure}
+
+  \item We will want to prove this compilation correct by proving that it preserves denotation:
+  \begin{definition}[Semantics preserving compilation]
+    Let $L_1$ and $L_2$ be languages with semantic interpretations $\dbracket{\cdot}$
+    with the same semantic domain.
+    A compilation $\compiles$ from language $L_1$ to language $L_2$ is
+    \defn{semantics-preserving} if, for any program $p_1$ written in $L_1$ 
+    where $p_1 \compiles p_2$, it is the case that $\dbracket{p_1} = \dbracket{p_2}$.
+  \end{definition}
+  \begin{theorem}
+    The compilation rules in Figure~\ref{fig:compile} are semantics-preserving.
+  \end{theorem}
+  \item In a seminal paper \citet{felleisen1990expressive} distinguished between
+  different kinds of programming languages based on their supported syntactic features. He
+  compared languages on the basis of \emph{expressivity}: whether or not it was
+  possible to express all programs in one language in the other. 
+  \item Here we consider a notion similar in spirit,
+    with an emphasis on \emph{efficient
+     expressiveness}, which captures whether or not an \emph{efficient} (i.e., polynomial-time)
+  translation exists between two languages:
+  \begin{definition}[Efficient expressiveness]
+    A program $p_1$ written in language $L_1$ is \defn{efficiently expressible} 
+    as a program $p_2$ written in language $L_2$ if
+    there exists a polynomial-time semantics-preserving translation $p_1
+    \rightsquigarrow p_2$. 
+    We say language $L_1$ is \defn{efficiently expressible} as $L_2$, written $L_1 \sqsubseteq L_2$, 
+    if all programs in $L_1$ are efficiently expressible as programs in $L_2$.
+  \end{definition}
+
+  \item Observe: $\prop_S$ is efficiently expressible as $\prop$, but not vice versa
+
+  % \item Formally, \prop{}$_S$ is a sublangauge of \prop{} in the sense of
+  % \citet{felleisen1990expressive}, so it can inherit its denotation and runtime
+  % behavior. Here is a slightly informal definition (see \citet{felleisen1990expressive} for 
+  % a more rigorous one):
+  % \begin{definition}[Sublanguage]
+  %   A language $L_1$ is a sublanguage of a super-language $L_2$ if (1) there
+  %   exists an  (2) the semantics of every 
+  % \end{definition}
+
+  % \item Observe that every sublanguage is efficiently expressible as its super-language.
+
+
+\end{itemize}
+
+\section{Binary decision diagrams}
+\begin{itemize}
   \item \textbf{Problem}: \prop$_S${} is not very expressive
   \item \textbf{Goal:} More expressive tractable languages
   \item What can we improve about \prop$_S$? Observe that there may be 
-  \emph{repetitious sub-syntactic terms}, and we'd like to exploit those, just
+  \emph{repetitious syntactic subterms}, and we'd like to exploit those, just
   like we observed in our memoized reduction scheme
   \item How can we represent repetitious subterms syntactically? By changing our 
   syntax to permit \emph{directed acyclic graphs}!
+  \item Syntax of \defn{binary decision diagram} (\bdd{}): a rooted binary directed acyclic graph 
+  with two kinds of nodes:
+  \begin{itemize}
+    \item \emph{Choice nodes}, written \texttt{Ite($x, l, h$)}, where $x$ is a
+    propositional variable (called the top variable), $l$ is an edge called the \emph{low edge}, and 
+    $h$ is an edge called the \emph{high edge}
+    \item \emph{Terminal nodes}, which are labeled $\true$ or $\false$.
+  \end{itemize}
+  \item The syntax of \bdd{} is given as graphical notation, for example:
 
-  \item Syntax of \defn{binary decision diagrams} (BDDs):\marginnote{Here we give a BNF grammar that permits directed acyclic graphs as terms.
-    This is quite non-standard: we are implicitly permitting the structural
-    re-use of terms in this grammar, and assuming an induction principle that 
-    ``inducts on the structure of DAGs'' in this definition of syntax. I don't
-    want to get to into the weeds on this, so we will mostly see through examples how 
-    we write terms in this language and perform proofs by structural induction.
-    See \citet{braibant2014implementing} for some discussion on this.}
-  \begin{align*}
-    \begin{tikzpicture}
-    \node [bddtriangle] {$\alpha_1$};
-    \end{tikzpicture},
-    \begin{tikzpicture}
-    \node [bddtriangle] {$\alpha_2$};
-    \end{tikzpicture} :: = 
-    \begin{tikzpicture}
-      \node [bddterminal] {$\true$};
-    \end{tikzpicture} \mid 
-    \begin{tikzpicture}
-      \node [bddterminal] {$\false$};
-    \end{tikzpicture} \mid
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-  \end{align*}
-  I.e., each BDD is a rooted directed acyclic graph with terminal nodes labeled 
-  $\true$ and $\false$, and internal \emph{branch nodes} labeled by propositional 
-  variables. The solid edge of a branch node is called the \emph{high edge}, and the 
-  dashed edge is called the \emph{low edge}.
-  \item Here are some example BDDs:
-
-  \begin{figure}[h]
-    \centering
-    \begin{subfigure}[b]{0.4\textwidth}
   \begin{tikzpicture}
+      
     \def\lvl{16pt}
-    \node (x) at (0bp,0bp) [bddnode] {$x$};
-    \node (y) at ($(x) + (-25bp, -\lvl)$) [bddnode] {$y$};
-    \node (vt) at ($(y) + (-25bp, -\lvl)$) [bddterminal] {$\true$};
-    \node (vf) at ($(y) + (25bp, -\lvl)$) [bddterminal] {$\false$};
+    \node (inc) at (0bp,0bp) [bddnode] {$x$};
+
+    \node (f1) at ($(inc) + (-25bp, -\lvl)$) [bddnode] {$y$};
+    \node (f2) at ($(f1) + (25bp, -\lvl)$) [bddnode] {$z$};
+
+    \node (vt) at ($(f2) + (-25bp, -\lvl)$) [bddterminal] {$\true$};
+
+    \node (vf) at ($(f2) + (25bp, -\lvl)$) [bddterminal] {$\false$};
     \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (y);
-      \draw [lowedge] (x) -- (vf);
-      \draw [lowedge] (y) -- (vf);
-      \draw [highedge] (y) -- (vt);
+      \draw [highedge] (inc) -- (f1);
+      \draw [lowedge] (inc) -- (vf);
+
+      \draw [lowedge] (f1) -- (f2);
+      \draw [highedge] (f1) -- (vt);
+
+      \draw [highedge] (f2) -- (vf);
+      \draw [lowedge] (f2) -- (vt);
     \end{scope}
+
   \end{tikzpicture}
-  \caption{A BDD representing $x \land y$}
-\end{subfigure}~~
-\begin{subfigure}[b]{0.4\textwidth}
-  \begin{tikzpicture}
-    \def\lvl{22pt}
-    \node (x) at (0bp,0bp) [bddnode] {$x$};
-    \node (y1) at ($(x) + (-25bp, -\lvl)$) [bddnode] {$y$};
-    \node (y2) at ($(x) + (25bp, -\lvl)$) [bddnode] {$y$};
-    \node (z1) at ($(y1) + (0, -\lvl)$) [bddnode] {$z$};
-    \node (z2) at ($(y2) + (0, -\lvl)$) [bddnode] {$z$};
-    \node (vt) at ($(z1) + (0, -\lvl)$) [bddterminal] {$\true$};
-    \node (vf) at ($(z2) + (0, -\lvl)$) [bddterminal] {$\false$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (y1);
-      \draw [lowedge] (x) -- (y2);
-      \draw [lowedge] (y1) -- (z1);
-      \draw [highedge] (y1) -- (z2);
-      \draw [highedge] (y2) -- (z1);
-      \draw [lowedge] (y2) -- (z2);
-      \draw [lowedge] (z1) -- (vt);
-      \draw [highedge] (z2) -- (vt);
-      \draw [lowedge] (z2) -- (vf);
-      \draw [highedge] (z1) -- (vf);
-    \end{scope}
-  \end{tikzpicture}
-  \caption{A BDD representing $x \oplus y \oplus z$}
-\end{subfigure}
 
-\caption{Example \bdd{} programs.}
-\end{figure}
+  Solid edges are high edges, dotted edges are low edges
 
-  Solid edges are high edges, dotted edges are low edges. BDDs are read top-down, 
-  where the implied directionality of the arrow is top-down.
-
-  \item Observe that there can many equivalent ways of writing the same BDD for a 
-  particular denotation (show examples on board)
-
-  \item A BDD is called \emph{ordered} if each variable is used \emph{at most
-  once} and in a \emph{fixed order}. We will consider only ordered BDDs.
-
-
-  \item A BDD is called \emph{reduced} if, for every node 
-  \begin{tikzpicture}
-    \def\lvl{16pt}
-    \node (x) at (0bp,0bp) [bddnode] {$x$};
-    \node (t) at ($(x) + (-25bp, -\lvl)$) [bddtriangle] {$\alpha_1$};
-    \node (f) at ($(x) + (25bp, -\lvl)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (t);
-      \draw [lowedge] (x) -- (f);
-    \end{scope}
-  \end{tikzpicture}, it is the case that $\bddtriangle{$\alpha_1$} \ne \bddtriangle{$\alpha_2$}$.
-  \item We can enforce these constraints with a typing judgment that is reminescent of 
-  \emph{ordered affine linear logic}~\citep{girard1987linear}.
-
-  Let $\Gamma$ be an \emph{ordered} list of propositional variables.
-  A term in \robdd{} is a \bdd{} term that satisfies the following typing judgment, written 
-  $\Gamma \vdash \bddtriangle{}$:
-  \begin{mathpar}
-    \inferrule{}{\Gamma \vdash^r
-      \begin{tikzpicture}
-      \node [bddterminal] {$\true$};
-      \end{tikzpicture}}
-      \and 
-    \inferrule{}{\Gamma \vdash^r
-      \begin{tikzpicture}
-      \node [bddterminal] {$\false$};
-      \end{tikzpicture}}
-    \and 
-    \inferrule*[Right=(\textsc{Weaken})]{\Gamma \vdash^r \bddtriangle{$\alpha$}}{x :: \Gamma \vdash^r \bddtriangle{$\alpha$}}
-    \\
-    \inferrule{\Gamma \vdash^r \bddtriangle{$\alpha_1$} \and \Gamma \vdash^r \bddtriangle{$\alpha_2$} \and 
-    \bddtriangle{$\alpha_1$} \ne \bddtriangle{$\alpha_2$}
-    }
-    {x :: \Gamma \vdash^r 
-        \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}}
-  \end{mathpar}
-
-
-\begin{theorem}[Canonicity of ROBDD]
-For two well-typed ROBDD terms $\Gamma \vdash^r \alpha_1$ and $\Gamma \vdash^r \alpha_2$,
-it is the case that $\dbracket{\Gamma \vdash \alpha_1} =\dbracket{\Gamma \vdash \alpha_2}$ 
-if and only if $\alpha_1 = \alpha_2$.
-\end{theorem}
-\begin{proof}
-It is straightforward to show that if $\alpha_1 = \alpha_2$ then $\dbracket{\Gamma
-\vdash^r \alpha_1} = \dbracket{\Gamma \vdash^r \alpha_2}$. The proof in the other 
-direction follows by inducting on $|\Gamma|$. 
-
-\textbf{Base case:} Assume $|\Gamma|$ = 0. Assume $\dbracket{\emptyset \vdash \alpha_1} = 
-\dbracket{\emptyset \vdash \alpha_2}$. By our typing judgment for \robdd{},
-$\alpha_1$ and $\alpha_2$ must each be either $\true$ or $\false$; these two cases 
-have different semantics (either $\emptyset$ or $\{\top\}$), so we can conclude that this implies that $\alpha_1 = \alpha_2$.
-
-\textbf{Inductive argument}: (come back if time, if no time, see
-\citet{bryant1992symbolic} and \citet{knuth2013art} for an extended discussion)
-
-
-% Assume $\dbracket{\Gamma \vdash^r \alpha_1} = \dbracket{\Gamma \vdash^r
-% \alpha_2}$; we want to show that this implies that $\alpha_1 = \alpha_2$. The
-% proof will proceed by induction on the size of 
-% $\dbracket{\Gamma \vdash^r \alpha_1}$.
-
-% \begin{itemize}
-%   \item Base case: Assume $|\dbracket{\Gamma \vdash^r \alpha_1}| = 0$. 
-
-%   We will show that $\alpha_1 = \false$ by induction on $\alpha_1$:
-
-%   \begin{itemize}
-%     \item   Base cases: If $\alpha_1 = \false$, we are done. If $\alpha_1 = \true$,
-%       then $|\dbracket{\Gamma \vdash \true}| > 0$, which is a contradiction.
-%     \item Inductive case: 
-%   \end{itemize}
-
-
-% \end{itemize}
-\end{proof}
-
-
-
-
-
-  \item We can enforce this ordering constraint with a typing judgment that is reminescent of 
-  \emph{ordered affine linear logic}~\citep{girard1987linear}.
-
-  Let $\Gamma$ be an \emph{ordered} list of propositional variables.
-  A term in \robdd{} is a \bdd{} term that satisfies the following typing judgment, written 
-  $\Gamma \vdash \bddtriangle{}$:
-  \begin{mathpar}
-    \inferrule{}{\Gamma \vdash
-      \begin{tikzpicture}
-      \node [bddterminal] {$\true$};
-      \end{tikzpicture}}
-      \and 
-    \inferrule{}{\Gamma \vdash
-      \begin{tikzpicture}
-      \node [bddterminal] {$\false$};
-      \end{tikzpicture}}
-    \and 
-    \inferrule*[Right=(\textsc{Weaken})]{\Gamma \vdash \bddtriangle{$\alpha$}}{x :: \Gamma \vdash \bddtriangle{$\alpha$}}
-    \\
-    \inferrule{\Gamma \vdash \bddtriangle{$\alpha_1$} \and \Gamma \vdash \bddtriangle{$\alpha_2$} \and 
-    \bddtriangle{$\alpha_1$} \ne \bddtriangle{$\alpha_2$}
-    }
-    {x :: \Gamma \vdash^r 
-        \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}}
-  \end{mathpar}
-
-\
-
-  \item Semantics of BDDs: Let $\Gamma$ be an ordered list of propositional variables. 
-  Then:
+  \item Semantics of \bdd{}:
   \begin{align*}
     \dbracket{
     \Gamma \vdash 
@@ -270,429 +343,24 @@ have different semantics (either $\emptyset$ or $\{\top\}$), so we can conclude 
       \begin{tikzpicture}
     \def\lvl{16pt}
     \node (x) at (0bp,0bp) [bddnode] {$x$};
-    \node (t) at ($(x) + (-25bp, -\lvl)$) [bddtriangle] {$\alpha_1$};
-    \node (f) at ($(x) + (25bp, -\lvl)$) [bddtriangle] {$\alpha_2$};
+    \node (t) at ($(x) + (-25bp, -\lvl)$) [bddnode] {$y$};
+    \node (f) at ($(x) + (25bp, -\lvl)$) [bddnode] {$z$};
     \begin{scope}[on background layer]
       \draw [highedge] (x) -- (t);
       \draw [lowedge] (x) -- (f);
     \end{scope}
-    \end{tikzpicture}~} &= \{ I \in \dbracket{\Gamma \vdash \bddtriangle{$\alpha_1$}} \mid I(x) = \true \} 
-    \cup \{ I \in \dbracket{\Gamma \vdash \bddtriangle{$\alpha_2$}} \mid I(x) = \false \}
+    \end{tikzpicture}~} &= \{ I \in \dbracket{y} \mid I(x) = \true \} \cup \{ I \in \dbracket{z} \mid I(x) = \false \}
   \end{align*}
-
-We define $\dbracket{\Gamma}$ inductively:
-\begin{align*}
-  \dbracket{[]} &= \{\top\} \\
-  \dbracket{x :: \Gamma} &= \Big\{ [x \mapsto \true] \cup I \mid I \in \dbracket{\Gamma} \Big\} \cup 
-    \Big\{ [x \mapsto \false] \cup I \mid I \in \dbracket{\Gamma} \Big\},
-\end{align*}
-where $\top$ is the empty map.
 \end{itemize}
 
-\subsection{Probabilistic \bdd{}}
-\begin{itemize}
-  \item Just like how we made propositional logic, we can define a probabilistic
-  version of BDDs and give them a probabilistic semantics. We call this language
-  \bdd{}. 
-  \item Syntax of \bdd{}: pairs $(\alpha, w)$, where $\alpha$ is a BDD and $w$
-  is a map from propositional variables to probabilities
-  \item The denotational semantics are nearly identical to \prop$_S${}, so we skip 
-  then here. The operational semantic are quite similar as well:
-  \begin{mathpar}
-    \inferrule{}{(\begin{tikzpicture}
-      \node [bddterminal] {$\true$};
-    \end{tikzpicture}, w) \Downarrow 1}
-    \and
-    \inferrule{}{(\begin{tikzpicture}
-      \node [bddterminal] {$\false$};
-    \end{tikzpicture}, w) \Downarrow 0} \\
-    \inferrule{
-      \bddtriangle{$\alpha_1$} \Downarrow v_1 \and \bddtriangle{$\alpha_2$} \Downarrow v_2
-    }{
-    \Big(\begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}, w \Big) \Downarrow w(x) + v_1 + w(\overline{x})v_2}
-  \end{mathpar}
-  
-  \item Is the above a a tractable runtime for \bdd{}? 
-  This question is a bit subtle and depends on how we
-  define structural induction on BDDs. For now, let's assume that we are caching as 
-  traverse (just like the memoization routine from last time); this memoization routine 
-  is a surely a tractable runtime for \bdd{}.
-\end{itemize}
+% \section{Knowledge compilation}
+% \begin{itemize}
+%   \item \textbf{Goal}: give a compilation strategy from \prop{} to \bdd{}
+% \end{itemize}
 
-\begin{theorem}
-  \bdd{} is more expressive than \prop$_S$.
-\end{theorem}
-\begin{proof}
-  To show this, we must show two things: (1) that there is an efficient 
-  compilation from \prop$_S$ to \bdd{}, and (2) that there is no efficient
-  compilation from \bdd{} to \prop$_S$. Showing (1) is straightforward.
-  Showing (2) is quite tricky.
 
-  In general, there are the following strategies we can use to establish that there 
-  is no efficient semantics-preserving translation:
-  \begin{itemize}
-    \item \emph{Denotational lower-bounds}: Show that there is a particular denotation
-    that separates the two languages
-    \item \emph{Reduction}: Show that the existence of a efficient
-    semantics-preserving map can be used to give an efficient algorithm for something 
-    we know is hard (i.e., solving SAT)
-  \end{itemize}
-
-In this case it is easier to give a denotational lower-bound\sidenote{...but,
-if you can find a reduction, I'd be interested in seeing it!}.
-We will have the following two lemmas that establish separation
-between \prop$_S${} and \bdd{}:
-\begin{lemma}
-  For any integer $N$, There exists a BDD of size less than $2n$ whose
-  denotation is equal to $\dbracket{\bigoplus_i^N x_i}$.
-\end{lemma}
-\begin{lemma}
-  For any $N$ there does not exist a \prop$_S$ formula
-  represents the denotation given by $\dbracket{\bigoplus_i^N x_i}$ 
-  whose size is less than $2^N$.
-\end{lemma}
-
-\end{proof}
-
-\subsection{Compiling \prop$_S$ to \bdd{}}
-\marginnote{In the literature this process is typically called \emph{top-down 
-knowledge compilation}. See \citep{darwiche2002knowledge,oztok2015top, darwiche2004new}.}
-\begin{itemize}
-  \item \textbf{Goal}: Build a compiler from \prop{} to \bdd{}. The weight function 
-  translation is simple. We focus on translating formulae, which now has
-  has a contextual compilation relation $(\pi, \varphi) \compiles \bdd{}$, where 
-  now $\rho$ is a map from \prop{} to \bdd{}:
-
-  \begin{mathpar}
-    \inferrule{}{(\pi, \true) \compiles \bddtrue}
-    \and
-    \inferrule{}{(\pi, \false) \compiles \bddfalse}
-    \and
-    \\
-    \inferrule{
-      (\pi, \varphi[\true/x]) \compiles \bddtriangle{$\alpha_1$} \and \varphi[\false/x] \compiles \bddtriangle{$\alpha_2$}
-      \and \bddtriangle{$\alpha_1$} \ne \bddtriangle{$\alpha_2$}
-    }{
-    \varphi \compiles
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}}
-    \\
-    \inferrule{
-      \varphi[\true/x] \compiles \bddtriangle{$\alpha_1$} \and (\pi, \varphi[\false/x]) \compiles \bddtriangle{$\alpha_2$}
-      \and \bddtriangle{$\alpha_1$} = \bddtriangle{$\alpha_2$}
-    }{
-    (x :: \pi, \varphi) \compiles \bddtriangle{$\alpha_1$}}
-
-  \end{mathpar}
-  
-  \item \begin{theorem}
-    The above compilation rule produces well-typed BDDs.
-  \end{theorem}
-  
-  \item \textbf{Observe}: This looks almost identical to our memoized semantics
-  $\Downarrow^m$. In some sense, the memoized semantics are efficient if and
-  only if there exists a compilation to \bdd{}. This means that the syntax of
-  \bdd{} perfectly captures the subset of \prop{} that can be executed
-  efficiently by $\Downarrow^m$
-
-  % \item Can we formalize this similarity? Here is an attempt:
-
-  % \begin{conjecture}[Relative completeness of \bdd{} wrt. $\Downarrow^m$]
-  %   Let \prog{} be a \prop{} program. Then, $\Downarrow^m$ is tractable in $|\prog|$ 
-  %   if and only if there exists a semantics preserving translation from $\prog$ to 
-  %   \bdd{}.
-  % \end{conjecture}
-\end{itemize}
-
-\section{Compositional compilation}
-\begin{itemize}
-  \item So far we have compiled by inducting on variables
-  \item \textbf{Problem}: this is not \emph{compositional}! A compilation
-  process is compositional if it works by compiling big programs out of 
-  smaller sub-programs. I.e., it would have a rule that looks something like:
-  \begin{mathpar}
-    \inferrule{\alpha \compiles \alpha' \and \beta \compiles \beta'}{
-      \alpha \land \beta \compiles \alpha' \times \beta'
-    }
-  \end{mathpar}
-  \item Compositional compilation is great: gives us modular reasoning 
-  about performance, ... (other reasons?)
-  \item \textbf{Goal}: Design a compositional process for compiling \prop$_S$ to 
-  \bdd{}
-
-  \item How can we build big BDDs out of smaller ones? Define a way to compose together 
-  BDDs, again using a type-directed step-relation $\Gamma \vdash \alpha_1 \land
-  \alpha_2 \Downarrow \beta$:
-  \begin{mathpar}
-    \inferrule{}{\Gamma \vdash \bddtrue{} \land \alpha \Downarrow \alpha} \and 
-    \inferrule{}{\Gamma \vdash \bddfalse{} \land \false \Downarrow \bddfalse{}} \and \dots \\
-
-    \inferrule{\Gamma \vdash \alpha_1 \land \alpha_3 \compiles \alpha_{13} \and 
-    \Gamma \vdash \alpha_2 \land \alpha_4 \compiles \alpha_{24} \and 
-    \alpha_{13} \ne \alpha_{24}
-    }{x :: \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_{13}$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_{24}$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    }
-
-    \\
-
-    \inferrule{\Gamma \vdash \alpha_1 \land \alpha_3 \compiles \alpha_{13} \and 
-    \Gamma \vdash \alpha_2 \land \alpha_4 \compiles \alpha_{24} \and 
-    \alpha_{13} = \alpha_{24}
-    }{x :: \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \bddtriangle{$\alpha_{24}$}
-    } 
-
-    \\
-
-    \inferrule{x \ne y \ne z \and 
-    \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$z$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \bddtriangle{$\alpha$}
-    }{x :: \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$z$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \bddtriangle{$\alpha$}
-    }
-
-    \\
-
-    \inferrule{x \ne y \and 
-    \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \bddtriangle{$\alpha_1$}
-    \Downarrow 
-    \alpha_{y_1}
-    \and 
-    \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \bddtriangle{$\alpha_2$}
-    \Downarrow 
-    \alpha_{y_2}
-    \and 
-    \alpha_{y_1} \ne \alpha_{y_2}
-    }{x :: \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_{y_1}$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_{y_2}$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    }
-
-    \\
-
-    \inferrule{x \ne y \and 
-    \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \bddtriangle{$\alpha_1$}
-    \Downarrow 
-    \alpha_{y_1}
-    \and 
-    \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \bddtriangle{$\alpha_2$}
-    \Downarrow 
-    \alpha_{y_2}
-    \and 
-    \alpha_{y_1} = \alpha_{y_2}
-    }{x :: \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \alpha_{y_2}
-    }
-  \end{mathpar}
-  
-  \begin{theorem}[Correctness]
-    If $\Gamma \vdash \alpha_1$, $\Gamma \vdash \alpha_2$, and $\Gamma \vdash \alpha_1 \land \alpha_2 \Downarrow \beta$, 
-    then $\dbracket{\alpha_1} \cap \dbracket{\alpha_2} = \dbracket{\beta}$.
-  \end{theorem}
-
-  \begin{theorem}[Type preservation]
-    If $\Gamma \vdash \alpha_1$, $\Gamma \vdash \alpha_2$, and $\Gamma \vdash \alpha_1 \land \alpha_2 \Downarrow \alpha$, 
-    then $\Gamma \vdash \alpha$.
-  \end{theorem}
-\end{itemize}
 
 \bibliographystyle{plainnat}
 \bibliography{../bib}
-
 
 \end{document}
