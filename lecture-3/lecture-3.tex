@@ -18,7 +18,7 @@
 Now we are ready to ask: \emph{can we use
 propositional logic as the basis for an effective probabilistic model}?
 The first question is: what is our sample space? It's clear so far that a logical 
-choice of sample space is the set of all possibly instances for a fixed set 
+choice of sample space is the set of all possible instances for a fixed set 
 of Boolean formulae; this sample space will have size $2^n$, where $n$ is the number 
 of propositional variables.
 Now, if we want to efficiently evaluate queries over this sample space, we need
@@ -80,8 +80,8 @@ Example \prop{} program:
   over. We denote this universe $\Gamma$, which is a finite set of propositional
   variables.
 
-  \item A syntactic term in \prop{} is \defn{well-typed by universe $\Gamma$} if every
-  propositional variable that is free in \prop{} can is in $\Gamma$. If a term
+  \item A syntactic term $(\varphi,w)$ in \prop{} is \defn{well-typed by universe $\Gamma$} if every
+  propositional variable that is free in $\varphi$ is in $\Gamma$. If a term $\texttt{p}$
   is well-typed by $\Gamma$, we write $\Gamma \vdash \texttt{p}$. We can
   formalize this description of $\Gamma$ inductively on \prop{} programs. First,
   we describe whether or not a propositional term is well-typed, $\Gamma \vdash
@@ -130,7 +130,7 @@ Example \prop{} program:
      \dbracket{\Gamma \vdash \varphi} &\triangleq \{I \in \dbracket{\Gamma} \mid I \models \varphi \}
     \end{align}
     \item $\dbracket{\Gamma \vdash w} : \Gamma \rightarrow \bool \rightarrow [0, 1]$ produces a
-    map from assignments to propositional variables to real values:
+    map from assignments to individual propositional variables to real values:
   \end{itemize}
   \begin{align}
     \dbracket{\Gamma \vdash [x_1 \mapsto \theta_1, \dots, x_n \mapsto \theta_n]}(x_i)(\true) &\triangleq \theta_i\\
@@ -218,12 +218,12 @@ Example \prop{} program:
                 edge from parent node [above] {$x = \false$} };
   \end{tikzpicture}
 
-    \item We will describe a relation $(\pi, \texttt{p}) \Downarrow^e \real$:
+    \item We will describe a relation $(\pi, \texttt{p}) \Downarrow^e r$:
     \begin{itemize}[noitemsep]
         \item $\pi$ is an ordered list of propositional variables. We denote 
         list concatenation as $x::\pi$. 
         \item \texttt{p} is a \prop{} program
-        \item The result $\mathbb{R}$ will be equal to $\dbracket{\texttt{p}}$
+        \item The result $r\in\mathbb{R}$ will be equal to $\dbracket{\texttt{p}}$
     \end{itemize}
 
     \item Define $\varphi[x \mapsto v]$ as the substitution where we replace all

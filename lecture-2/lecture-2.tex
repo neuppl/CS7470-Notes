@@ -15,7 +15,7 @@
 computations in a form comprehensible to both people and machines.'' \citet{harper2016practical}}
 
 
-The goal of these next 3 lectures is to build our our first ``probabilistic programming
+The goal of these next 3 lectures is to build our first ``probabilistic programming
 language''. I put that in quotes because it is not going to look like a typical
 programming language like C or Java. We will build our way up to programming
 languages that look more familiar to you, but today we will encounter a ``baby''
@@ -51,7 +51,7 @@ For example, a sample space could be the set of all pairs of six-sided dice roll
 Then, we would assign a \emph{uniform probability distribution} over all dice
 rolls:
 \begin{align*}
-    \text{For all } \omega \in \Omega_{dice}, \Pr_{dice}(\omega) = 1/36.
+    \text{For all } \omega \in \Omega_{dice}, {\Pr}_{dice}(\omega) = 1/36.
 \end{align*}
 Then, we have a probability space $(\Omega_{dice}, \Pr_{dice})$.
 Or, continuing with our propositional example,
@@ -93,14 +93,14 @@ are contained in the event:
 \begin{align}
     \Pr(E) \triangleq \sum_{\omega \in E} \Pr(\omega).
 \end{align}
-Continuing with our above example, $\Pr(\{(d_1, d_2) \mid d_1 = 1\})$ is 1/6.
+Continuing with the dice example, $\Pr(\{(d_1,d_2) \mid d_1 = 1\})$ is 1/6.
 
 Typically in probability we work with quantities that are derived from the sample space; 
 these are called random variables.
 Formally, a \defn{random variable} is a map out of the sample space. For instance, we can
-define a random variable $S : \Omega_{dice} \rightarrow \mathbb{N}$ to be to sum two dice rolls
-$\pi_1$ to be the first die's value, and $\pi_2$ to be the second,where
-$\mathbb{N}$ is the set of natural numbers:
+define a random variable $S : \Omega_{dice} \rightarrow \mathbb{N}$ to be to sum two dice rolls,
+$\pi_1$ to be the first die's value, and $\pi_2$ to be the second,
+where $\mathbb{N}$ is the set of natural numbers:
 \begin{align}
     S((d_1, d_2)) = d_1 + d_2, \quad \pi_1((d_1, d_2)) = d_1, \quad \pi_2((d_1, d_2)) = d_2.
     \label{eq:rvs}
@@ -143,8 +143,8 @@ marginal probability of $X$ is given by ``summing out'' $Y$:
 \newthought{One of the most common operations} one performs in probability is
 \emph{conditioning}: computing the probability that some event happens
 \emph{given an observation} that some other event has occurred. For instance,
-one might ask, ``what is the probability of that the sum of a pair of dice rolls
-is even given that one of them is 1''? Formally, these questions are instances
+one might ask, ``what is the probability that the sum of a pair of dice rolls
+is even given that the first die lands on 1''? Formally, these questions are instances
 of \emph{conditional probability}; notationally, the above question would be 
 written as $\Pr( S \text { is even} \mid \pi_1 = 1)$; the bar separates two
 events, and is read ``given''.
@@ -177,7 +177,7 @@ events, and is read ``given''.
     }
 \end{marginfigure}
 Given a joint probability distribution $\Pr(X, Y)$, we define the \defn{conditional probability}
-of $X$ given $Y$ is:
+of $X$ given $Y$ as:
 \begin{align}
     \Pr(X=x \mid Y = y) \triangleq \frac{\Pr(X = x, Y = y)}{\Pr(Y = y)}.
     \label{eq:cond}
@@ -186,7 +186,7 @@ There are a number of relationships between these quantities that are commonly u
 One is the law of total probability, which can be derived by
 combining equations (\ref{eq:cond}) and (\ref{eq:marg}):
 \begin{align}
-    \Pr(X=x) = \sum_y \Pr(X = x \mid Y = y)\Pr(y).
+    \Pr(X=x) = \sum_y \Pr(X = x \mid Y = y)\Pr(Y=y).
 \end{align}
 It is sometimes the case that conditioning on one random variable has no effect:
 for instance, in our dice-roll example, observing the value of the first die
@@ -227,7 +227,8 @@ probabilistic model is a look-up table (or dictionary):
 \end{definition}
 
 For instance, if we are given a discrete sample space with 4 
-elements $\Omega = \{1, 2, 3, 4\}$, then we can represent this as 
+elements $\Omega = \{1, 2, 3, 4\}$, then we can represent a
+probability measure on $\Omega$ as 
 a dictionary or look-up table:
 \begin{align}
     \mathcal{T} = [1 \mapsto 0.1, 2 \mapsto 0.2, 3 \mapsto 0.3, 4 \mapsto 0.4],
@@ -242,7 +243,8 @@ equal to $|\Omega|$.
 Now that we have a concrete description of a probability distribution, we can
 describe algorithms for automatically \emph{querying} for properties about these
 representations. Different kinds of probabilistic models will support different 
-kinds of queries, and have different complexity-theoretic properties of those queries. cWe have already seen the most basic kind of query: given some 
+kinds of queries, and have different complexity-theoretic properties of those queries. 
+We have already seen the most basic kind of query: given some 
 event $E \subseteq \Omega$, compute the probability of that event $\Pr(E)$. 
 This immediately raises the question: how do we represent events? The most basic 
 approach is a \defn{set-event}, which supports constant-time membership checks 
@@ -272,7 +274,7 @@ sample space $\Omega$ is typically prohibitively large: it represents the set of
 This leads us to \emph{the fundamental design challenge of probabilistic modeling}.
 We desire a \emph{concise} (i.e., small in representation size, for instance polynomial in $\log |\Omega|$) language for describing 
 probability distributions and queries; ideally, this language is usable and interpretable 
-by a user. Additionally, we desire we want our queries to be \emph{tractable}: when we 
+by a user. Additionally, we want our queries to be \emph{tractable}: when we 
 compute the probability of an event (or perhaps some other kind of query), we want it to 
 be as efficient as possible in the representation size. We will see that these two attributes,
 tractability and conciseness, are in tension. In the case of lookup-table
@@ -300,9 +302,9 @@ true then so is $w$.
 We can summarize these connectives using the following grammar, which tells us how to form 
 any \defn{propositional formula} $\varphi, \alpha,$ or $\beta$ in propositional
 logic by combining propositional variables
-(lower-case letters) with any of the standard propositional connectives (conjunction $land$, disjunction $\lor$, 
+(lower-case letters) with any of the standard propositional connectives (conjunction $\land$, disjunction $\lor$, 
 unary negation $\neg$, and bi-implication $\Leftrightarrow$):\sidenote{This style of grammar 
-is often called Backus-Naur style.}
+is often called Backus-Naur form.}
 \begin{align}
     \varphi, \alpha, \beta ::= V \mid \true \mid \false \mid \neg \varphi \mid \alpha \land \beta \mid 
     \alpha \lor \beta \mid \alpha \Rightarrow \beta \mid \alpha \Leftrightarrow \beta 
