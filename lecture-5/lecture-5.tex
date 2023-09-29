@@ -236,7 +236,7 @@ have different semantics (either $\emptyset$ or $\{\top\}$), so we can conclude 
     \inferrule{\Gamma \vdash \bddtriangle{$\alpha_1$} \and \Gamma \vdash \bddtriangle{$\alpha_2$} \and 
     \bddtriangle{$\alpha_1$} \ne \bddtriangle{$\alpha_2$}
     }
-    {x :: \Gamma \vdash^r 
+    {x :: \Gamma \vdash 
         \begin{tikzpicture}
       \node (x) [bddnode] {$x$};
       \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
@@ -251,6 +251,14 @@ have different semantics (either $\emptyset$ or $\{\top\}$), so we can conclude 
 \
 
   \item Semantics of BDDs: Let $\Gamma$ be an ordered list of propositional variables. 
+  For convenience, we define an operation $\otimes$ that adds an assignment to a set of instances, 
+  i.e.:
+  \begin{align*}
+    &[x \mapsto \true] \otimes \{[z \mapsto \false], [z \mapsto \true]\} =\\ &\quad\quad \{[x \mapsto \true, z \mapsto \false], 
+    [x \mapsto \true, z \mapsto \true]
+    \}
+  \end{align*}
+  Formally, we say $[x \mapsto v] \otimes I = \{[x \mapsto v] \cup \gamma \mid \gamma \in I\}$.
   Then:
   \begin{align*}
     \dbracket{
@@ -266,7 +274,7 @@ have different semantics (either $\emptyset$ or $\{\top\}$), so we can conclude 
     \end{tikzpicture}~} &= \emptyset
     \\
     \dbracket{
-    \Gamma \vdash 
+    x::\Gamma \vdash 
       \begin{tikzpicture}
     \def\lvl{16pt}
     \node (x) at (0bp,0bp) [bddnode] {$x$};
@@ -276,15 +284,39 @@ have different semantics (either $\emptyset$ or $\{\top\}$), so we can conclude 
       \draw [highedge] (x) -- (t);
       \draw [lowedge] (x) -- (f);
     \end{scope}
-    \end{tikzpicture}~} &= \{ I \in \dbracket{\Gamma \vdash \bddtriangle{$\alpha_1$}} \mid I(x) = \true \} 
-    \cup \{ I \in \dbracket{\Gamma \vdash \bddtriangle{$\alpha_2$}} \mid I(x) = \false \}
+    \end{tikzpicture}~} &= 
+    [x \mapsto \true] \otimes \dbracket{\Gamma \vdash \alpha_1} \cup
+    [x \mapsto \false] \otimes \dbracket{\Gamma \vdash \alpha_2} \\
+    \dbracket{
+    y::\Gamma \vdash 
+      \begin{tikzpicture}
+    \def\lvl{16pt}
+    \node (x) at (0bp,0bp) [bddnode] {$x$};
+    \node (t) at ($(x) + (-25bp, -\lvl)$) [bddtriangle] {$\alpha_1$};
+    \node (f) at ($(x) + (25bp, -\lvl)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (t);
+      \draw [lowedge] (x) -- (f);
+    \end{scope}
+    \end{tikzpicture}~} &= 
+    \dbracket{\Gamma \vdash \begin{tikzpicture}
+    \def\lvl{16pt}
+    \node (x) at (0bp,0bp) [bddnode] {$x$};
+    \node (t) at ($(x) + (-25bp, -\lvl)$) [bddtriangle] {$\alpha_1$};
+    \node (f) at ($(x) + (25bp, -\lvl)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (t);
+      \draw [lowedge] (x) -- (f);
+    \end{scope}
+    \end{tikzpicture}
+    }
   \end{align*}
 
 We define $\dbracket{\Gamma}$ inductively:
 \begin{align*}
   \dbracket{[]} &= \{\top\} \\
-  \dbracket{x :: \Gamma} &= \Big\{ [x \mapsto \true] \cup I \mid I \in \dbracket{\Gamma} \Big\} \cup 
-    \Big\{ [x \mapsto \false] \cup I \mid I \in \dbracket{\Gamma} \Big\},
+  \dbracket{x :: \Gamma} &= [x \mapsto \true] \otimes \dbracket{\Gamma} ~\bigcup~ 
+    [x \mapsto \false] \otimes \dbracket{\Gamma}
 \end{align*}
 where $\top$ is the empty map.
 \end{itemize}
@@ -417,278 +449,6 @@ knowledge compilation}. See \citep{darwiche2002knowledge,oztok2015top, darwiche2
   %   if and only if there exists a semantics preserving translation from $\prog$ to 
   %   \bdd{}.
   % \end{conjecture}
-\end{itemize}
-
-\section{Compositional compilation}
-\begin{itemize}
-  \item So far we have compiled by inducting on variables
-  \item \textbf{Problem}: this is not \emph{compositional}! A compilation
-  process is compositional if it works by compiling big programs out of 
-  smaller sub-programs. I.e., it would have a rule that looks something like:
-  \begin{mathpar}
-    \inferrule{\alpha \compiles \alpha' \and \beta \compiles \beta'}{
-      \alpha \land \beta \compiles \alpha' \times \beta'
-    }
-  \end{mathpar}
-  \item Compositional compilation is great: gives us modular reasoning 
-  about performance, ... (other reasons?)
-  \item \textbf{Goal}: Design a compositional process for compiling \prop$_S$ to 
-  \bdd{}
-
-  \item How can we build big BDDs out of smaller ones? Define a way to compose together 
-  BDDs, again using a type-directed step-relation $\Gamma \vdash \alpha_1 \land
-  \alpha_2 \Downarrow \beta$:
-  \begin{mathpar}
-    \inferrule{}{\Gamma \vdash \bddtrue{} \land \alpha \Downarrow \alpha} \and 
-    \inferrule{}{\Gamma \vdash \bddfalse{} \land \false \Downarrow \bddfalse{}} \and \dots \\
-
-    \inferrule{\Gamma \vdash \alpha_1 \land \alpha_3 \compiles \alpha_{13} \and 
-    \Gamma \vdash \alpha_2 \land \alpha_4 \compiles \alpha_{24} \and 
-    \alpha_{13} \ne \alpha_{24}
-    }{x :: \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_{13}$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_{24}$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    }
-
-    \\
-
-    \inferrule{\Gamma \vdash \alpha_1 \land \alpha_3 \compiles \alpha_{13} \and 
-    \Gamma \vdash \alpha_2 \land \alpha_4 \compiles \alpha_{24} \and 
-    \alpha_{13} = \alpha_{24}
-    }{x :: \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \bddtriangle{$\alpha_{24}$}
-    } 
-
-    \\
-
-    \inferrule{x \ne y \ne z \and 
-    \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$z$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \bddtriangle{$\alpha$}
-    }{x :: \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$z$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \bddtriangle{$\alpha$}
-    }
-
-    \\
-
-    \inferrule{x \ne y \and 
-    \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \bddtriangle{$\alpha_1$}
-    \Downarrow 
-    \alpha_{y_1}
-    \and 
-    \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \bddtriangle{$\alpha_2$}
-    \Downarrow 
-    \alpha_{y_2}
-    \and 
-    \alpha_{y_1} \ne \alpha_{y_2}
-    }{x :: \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_{y_1}$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_{y_2}$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    }
-
-    \\
-
-    \inferrule{x \ne y \and 
-    \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \bddtriangle{$\alpha_1$}
-    \Downarrow 
-    \alpha_{y_1}
-    \and 
-    \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \bddtriangle{$\alpha_2$}
-    \Downarrow 
-    \alpha_{y_2}
-    \and 
-    \alpha_{y_1} = \alpha_{y_2}
-    }{x :: \Gamma \vdash 
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$x$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \land
-    \begin{tikzpicture}
-      \node (x) [bddnode] {$y$};
-      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
-      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
-    \begin{scope}[on background layer]
-      \draw [highedge] (x) -- (a1);
-      \draw [lowedge] (x) -- (a2);
-    \end{scope}
-    \end{tikzpicture}
-    \Downarrow 
-    \alpha_{y_2}
-    }
-  \end{mathpar}
-  
-  \begin{theorem}[Correctness]
-    If $\Gamma \vdash \alpha_1$, $\Gamma \vdash \alpha_2$, and $\Gamma \vdash \alpha_1 \land \alpha_2 \Downarrow \beta$, 
-    then $\dbracket{\alpha_1} \cap \dbracket{\alpha_2} = \dbracket{\beta}$.
-  \end{theorem}
-
-  \begin{theorem}[Type preservation]
-    If $\Gamma \vdash \alpha_1$, $\Gamma \vdash \alpha_2$, and $\Gamma \vdash \alpha_1 \land \alpha_2 \Downarrow \alpha$, 
-    then $\Gamma \vdash \alpha$.
-  \end{theorem}
 \end{itemize}
 
 \bibliographystyle{plainnat}
