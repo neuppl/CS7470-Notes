@@ -1,0 +1,603 @@
+\documentclass{tufte-handout}
+
+\title{Discrete Probabilistic Programming Languages\thanks{CS7470 Fall 2023: Foundations of Probabilistic Programming.}}
+
+
+\newcommand{\varset}[0]{\mathcal{V}}
+
+\author[]{Steven Holtzen\\s.holtzen@northeastern.edu}
+
+%\date{28 March 2010} % without \date command, current date is supplied
+
+%\geometry{showframe} % display margins for debugging page layout
+\input{../header.tex}
+
+\begin{document}
+\maketitle% this prints the handout title, author, and date
+
+\begin{itemize}
+  \item Goal for today: compile a simple discrete PPL to BDD
+\end{itemize}
+
+\section{Compositional compilation of BDDs}
+\begin{itemize}
+  \item So far we have compiled by inducting on variables
+  \item \textbf{Problem}: this is not \emph{compositional}! A compilation
+  process is compositional if it works by compiling big programs out of 
+  smaller sub-programs. I.e., it would have a rule that looks something like:
+  \begin{mathpar}
+    \inferrule{\alpha \compiles \alpha' \and \beta \compiles \beta'}{
+      \alpha \land \beta \compiles \alpha' \times \beta'
+    }
+  \end{mathpar}
+  \item Compositional compilation is great: gives us modular reasoning 
+  about performance, ... (other reasons?)
+  \item \textbf{Goal}: Design a compositional process for compiling \prop$_S$ to 
+  \bdd{}
+
+  \item How can we build big BDDs out of smaller ones? Define a way to compose together 
+  BDDs, again using a type-directed step-relation $\Gamma \vdash \alpha_1 \land
+  \alpha_2 \Downarrow \beta$, shown in Figure~\ref{fig:bdd}.
+
+  
+  \begin{theorem}[Correctness]
+    If $\Gamma \vdash \alpha_1$, $\Gamma \vdash \alpha_2$, and $\Gamma \vdash \alpha_1 \land \alpha_2 \Downarrow \beta$, 
+    then $\dbracket{\alpha_1} \cap \dbracket{\alpha_2} = \dbracket{\beta}$.
+  \end{theorem}
+  \begin{proof}
+    By simultaneous structural induction on syntax of BDDs (note that we need to
+    perform simultaneous induction since there are two BDDs at play here). The
+    rules in Figure~\ref{fig:bdd} are exhaustive (i.e., every pair of syntactic BDDs matches
+    exactly one of these structural rules), so we can proceed by case analysis on each
+    of the compilation rules. The base cases are quite simple and we elide them here. The
+    interesting cases are the inductive cases.
+
+    We will show the case for \textsc{(SameVarNE)}.  Assume that $\Gamma \vdash \alpha_1 \land
+    \alpha_3 \Downarrow \alpha_{13}$ and $\Gamma \vdash \alpha_2 \land \alpha_4 \Downarrow
+    \alpha_{24}$. As usual, our inductive hypothesis assumes that the theorem 
+    holds for compiled subterms:
+    \begin{itemize}
+      \item $\dbracket{\Gamma \vdash \alpha_1} \cap \dbracket{\Gamma \vdash \alpha_3} = \dbracket{\Gamma \vdash \alpha_{13}}$
+      \item $\dbracket{\Gamma \vdash \alpha_2} \cap \dbracket{\Gamma \vdash \alpha_4} = \dbracket{\Gamma \vdash \alpha_{24}}$
+    \end{itemize}
+
+    We want to show that:
+
+    \begin{align*}
+    \dbracket{x :: \Gamma \vdash \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}}
+    \bigcap
+    \dbracket{x :: \Gamma \vdash
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    } =
+    \dbracket{x :: \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_{13}$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_{24}$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    }
+  \end{align*}
+
+  We reason forward:
+  {\footnotesize 
+  \begin{align*}
+    \dbracket{x :: \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_{13}$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_{24}$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    } &=
+    [x \mapsto \true] \otimes \dbracket{\Gamma \vdash \alpha_{13}} ~\bigcup~ [x \mapsto \false] \otimes \dbracket{\Gamma \vdash \alpha_{24}} \\
+    &= [x \mapsto \true] \otimes \Big( \dbracket{\Gamma \vdash \alpha_1} \cap \dbracket{\Gamma \vdash \alpha_3} \Big)
+      ~\bigcup~ [x \mapsto \false] \otimes \Big( \dbracket{\Gamma \vdash \alpha_2} \cap \dbracket{\Gamma \vdash \alpha_4} \Big)
+      & \text{By I.H.} \\
+    &= \Big( [x \mapsto \true] \dbracket{\Gamma \vdash \alpha_1} \cap [x \mapsto \true] \dbracket{\Gamma \vdash \alpha_3} \Big)
+      ~\bigcup~  \Big([x \mapsto \false] \dbracket{\Gamma \vdash \alpha_2} \cap [x \mapsto \false]\dbracket{\Gamma \vdash \alpha_4} \Big)
+      & (\star)\\
+    &= \Big( [x \mapsto \true] \dbracket{\Gamma \vdash \alpha_1} \cup [x \mapsto \false] \dbracket{\Gamma \vdash \alpha_2} \Big)
+      ~\bigcap~  \Big([x \mapsto \true] \dbracket{\Gamma \vdash \alpha_1} \cup [x \mapsto \false]\dbracket{\Gamma \vdash \alpha_4} \Big)
+      & (\dagger) \\ 
+    &=     \dbracket{x :: \Gamma \vdash \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}}
+    \bigcap
+    \dbracket{x :: \Gamma \vdash
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    }
+  \end{align*}
+  }
+
+  where $(\star)$ follows from a simple lemma that $\otimes$ distributes over intersection 
+  and $(\dagger)$ follows from distributivity properties of union and intersection, 
+  in particular the fact that for any sets $A,B,C,D$ it is the case that $(A \cup B) \cap (C \cup D) = 
+  (A \cap C) \cup (B \cap D)$.\sidenote{This set theory property has a nice
+  ``proof by Venn-diagram''; draw the Venn-diagram of these sets to see this
+  fact clearly.}
+  
+  \end{proof}
+
+  \item We would also like to ensure that our compilation rules produce reduced and ordered 
+  BDDs. We can formalize this with a type-preservation theorem:
+  \begin{theorem}[Type preservation]
+    If $\Gamma \vdash \alpha_1$, $\Gamma \vdash \alpha_2$, and $\Gamma \vdash \alpha_1 \land \alpha_2 \Downarrow \alpha$, 
+    then $\Gamma \vdash \alpha$.
+  \end{theorem}
+
+  \item These rules are called \emph{bottom-up BDD compilation}~\citep{darwiche2002knowledge,oztok2015top}. 
+  \item There are several other compositional BDD operations we won't have time
+  to explain in lecture, but you can use in your lab, like disjunction, negation, substitution, 
+  and existential quantification.
+  \item Why might one prefer one mode of compilation over the other? Do they
+  have different runtime cost? \emph{Yes!}
+  \item \textbf{Exercise}: Give example families of formulae where
+  top-down compilation is faster than bottom-up and vice-versa.
+\end{itemize}
+
+\section{\disc{}: A simple discrete PPL}
+
+\begin{itemize}
+  \item Syntax:
+\begin{lstlisting}[mathescape=true]
+  e ::=
+  | x $\leftarrow$ e; e
+  | observe e; e
+  | flip q                         // q is a rational value
+  | if e then e else e
+  | return e
+  | true | false
+  | e $\land$ e | e $\lor$ e | $\neg$ e |
+  | ( e )
+p ::= e
+\end{lstlisting}
+
+\item \disc{} looks very similar to a standard functional programming language,
+but has two some interesting new keywords: \texttt{flip}, \texttt{observe}, and
+\texttt{return}
+
+\item $\texttt{flip}~\theta$ allocates a new random quantity that is $\true$
+with probability $\theta$ and $\false$ with probability $1-\theta$
+
+\item \texttt{return e} turns a non-probabilistic quantity into a probabilistic one, i.e. 
+\texttt{return true} is a \emph{probabilistic quantity} that is $\true$ with probability 1 and 
+$\false$ with probability 0
+
+\item Example program and its interpretation: 
+
+\begin{lstlisting}[mathescape=true]
+x $\leftarrow$ flip 0.5; 
+y $\leftarrow$ flip 0.5;
+return x $\land$ y
+\end{lstlisting}
+
+This program outputs the probability distribution $[\true \mapsto 0.25, \false
+\mapsto 0.75]$.
+
+\item \texttt{observe} is a powerful keyword that lets us \emph{condition} the
+program. For instance, suppose I want to model the following scenario: ``flip 
+two coins and observe that at least one of them is heads. What is the probability 
+that the first coin was heads?''
+
+We can encode this scenario as a \disc{} program:
+
+\begin{lstlisting}[mathescape=true]
+x $\leftarrow$ flip 0.5; 
+y $\leftarrow$ flip 0.5;
+observe x $\lor$ y;
+return x
+\end{lstlisting}
+
+This program outputs the probability distribution:
+\begin{align*}
+  [\true \mapsto (0.25 + 0.25) / 0.75, \false
+\mapsto 0.25 / 0.75]
+\end{align*} 
+
+\item \textbf{Type system}: terms can either be pure Booleans of type $\bool$ 
+or distributions on Booleans of type $\dist{\bool}$. So, we have the following 
+type definition:
+\begin{align}
+  \tau ::= \bool \mid \dist{\bool}.
+\end{align}
+
+\item We define a typing judgment $\Gamma \vdash \te : \tau$ that associates each 
+term with a type. The typing context $\Gamma$ is a map from identifiers to types.
+\begin{mathpar}
+  \inferrule{}{\Gamma \vdash \true{} : \bool} \and 
+  \inferrule{}{\Gamma \vdash \false{} : \bool} \and
+  \inferrule{}{\Gamma \vdash \texttt{flip}~\theta : \dist{\bool}} \and 
+  \inferrule{\Gamma \vdash \te : \bool}{\Gamma \vdash \texttt{return}~\te : \dist{\bool}} \and
+  \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \tau}
+    {\Gamma \vdash \texttt{observe}~\te_1; \te_2 : \tau} \and
+  \inferrule{\Gamma \vdash \te_1 : \dist{\bool} \and \Gamma \cup [x \mapsto \bool] \vdash \te_2 : \tau}
+    {\Gamma \vdash x \leftarrow \te_1; \te_2 : \tau} \and 
+  \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \tau \and \Gamma \vdash \te_3 : \tau}
+    {\Gamma \vdash \texttt{if}~\te_1~\texttt{then}~\te_2~\texttt{else}~\te_3 : \tau} \and
+  \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \bool}
+    {\Gamma \vdash \te_1 \land \te_2 : \bool}
+\end{mathpar}
+
+\end{itemize}
+
+
+
+\subsection{Denotational semantics of \disc{}}
+
+\begin{itemize}
+\item Associates each term with an \emph{unnormalized probability distribution} 
+(i.e., the total probability mass may be less than 1).
+\item Has the type $\dbracket{\te} : \texttt{Bool} \rightarrow [0, 1]$,
+and has the following inductive definition:
+
+$$
+[\![\texttt{flip}~\theta]\!](v) = 
+\begin{cases}
+\theta& \quad \text{if }v = T\\
+1-\theta& \quad \text{if }v = F\\
+\end{cases}
+$$
+
+$$
+ [\![\texttt{return}~e]\!](v) = 
+ \begin{cases}
+ 1\quad& \text{if }v = [\![e]\!]\\
+ 0\quad&  \text{otherwise}\\
+ \end{cases}
+$$
+
+$$
+[\![x \leftarrow e_1; e_2]\!](v) = \sum_{v'} [\![{e_1}]\!](v') \times [\![{e_2[x \mapsto v']}]\!](v)
+$$
+
+$$
+[\![\texttt{observe}~e_1; e_2]\!](v) = 
+\sum_{\{v' \mid [\![{e_1}(v') = T\}]\!]} [\![{e_2}]\!](v)
+$$
+
+\item The semantics for non-probabilistic terms is standard. The semantic evaluation has type 
+$[[e]]: \texttt{Bool}$ for closed terms.
+
+\item These semantics give an unnormalized distribution. The main semantic object of interest is 
+the normalized distribution, which is given by the \defn{normalized semantics}:
+
+$$
+[\![e]\!]_D(T) = \frac{[\![e]\!](T)}{[\![e]\!](T) + [\![e]\!](F) },
+$$
+
+defined analogously for the false case.
+\end{itemize}
+
+% \subsection{Inference via enumeration}
+% \begin{itemize}
+%   \item Define a relation $\te \Downarrow^e $
+% \end{itemize}
+
+\subsection{Compiling \disc{} to \prop{}}
+\begin{itemize}
+  \item \textbf{Goal}: give a semantics-preserving compilation
+  $\rightsquigarrow$ that compiles \disc{} to \prop{}
+  \item In order to handle observations, we will compile \disc{} programs into 
+  \emph{two} \prop{} programs: one that computes the unnormalized probability of 
+  returning $\true$, and one that computes the probability of evidence (i.e. normalizing constant)
+  \item Inductive description has the shape $\te \compiles (\texttt{p}_1, \texttt{p}_2)$. We want to 
+  define this relation to satisfy the following \textbf{adequacy condition}:
+  \begin{align} 
+    \dbracket{\te}_D(\true) = \frac{\dbracket{\prog_1}}{\dbracket{\prog_2}}.
+  \end{align} 
+  We will shorten this description to $\te \compiles
+  (\varphi, \varphi_A, w)$ and assume that the two formulae share a common
+  $w$. The adequacy condition then becomes:
+  \begin{align} 
+    \dbracket{\te}_D(\true) = \frac{\dbracket{(\varphi, w)}}{\dbracket{(\varphi_A, w)}}.
+  \end{align} 
+  \item Compilation relation:
+  \begin{mathpar}
+    \inferrule{}{\true \compiles (\true, \true, \emptyset)} \and 
+    \inferrule{}{\false \compiles (\false, \true, \emptyset)} \and 
+    \inferrule{}{x \compiles (x, \true, \emptyset)} \and 
+    \inferrule{\texttt{fresh}~x}
+      {\texttt{flip}~\theta \compiles (x, \true, [x \mapsto \theta, \overline{x} \mapsto 1-\theta])} \and
+    \inferrule{\te_1 \compiles (\varphi, \varphi_A, w) \and \te_2 \compiles (\varphi', \varphi_A', w')}
+      {x \leftarrow \te_1; \te_2 \compiles (\varphi'[\varphi/x], \varphi_A'[\varphi/x] \land \varphi_A, w_1 \cup w_2)} \and
+    \inferrule{\te_1 \compiles (\varphi, \varphi_A, w) \and \te_2 \compiles (\varphi', \varphi_A', w')}
+      {\texttt{observe}~\te_1; \te_2 \compiles (\varphi', \varphi_A' \land \varphi_A, w_1 \cup w_2)}
+  \end{mathpar}
+
+\end{itemize}
+\begin{theorem}[Adequacy]
+  For well-typed term $\te$,
+  assume $\te \compiles (\varphi, \varphi_A, w)$. Then, 
+  $\dbracket{\te}_D(\true) = {\dbracket{(\varphi, w)}} / {\dbracket{(\varphi_A, w)}}$.
+\end{theorem}
+
+  \begin{figure}
+  \begin{mathpar}
+    \inferrule{}{\Gamma \vdash \bddtrue{} \land \alpha \Downarrow \alpha} \and 
+    \inferrule{}{\Gamma \vdash \alpha \land \bddtrue{} \Downarrow \alpha} \\
+    \inferrule{}{\Gamma \vdash \bddfalse{} \land \alpha \Downarrow \bddfalse{}} \and 
+    \inferrule{}{\Gamma \vdash \alpha \land \bddfalse{} \Downarrow \bddfalse{}} \\
+
+    \inferrule*[Right={\textsc{(SameVarNE)}}]{\Gamma \vdash \alpha_1 \land \alpha_3 \compiles \alpha_{13} \and 
+    \Gamma \vdash \alpha_2 \land \alpha_4 \compiles \alpha_{24} \and 
+    \alpha_{13} \ne \alpha_{24}
+    }{x :: \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \land
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \Downarrow 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_{13}$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_{24}$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    }
+
+    \\
+
+    \inferrule*[Right={\textsc{(SameVarEQ)}}]{\Gamma \vdash \alpha_1 \land \alpha_3 \compiles \alpha_{13} \and 
+    \Gamma \vdash \alpha_2 \land \alpha_4 \compiles \alpha_{24} \and 
+    \alpha_{13} = \alpha_{24}
+    }{x :: \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \land
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \Downarrow 
+    \bddtriangle{$\alpha_{24}$}
+    } 
+
+    \\
+
+    \inferrule*[Right=\textsc{(Weaken)}]{x \ne y \ne z \and 
+    \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$y$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \land
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$z$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \Downarrow 
+    \bddtriangle{$\alpha$}
+    }{x :: \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$y$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \land
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$z$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \Downarrow 
+    \bddtriangle{$\alpha$}
+    }
+
+    \\
+
+    \inferrule*[Right=\textsc{(ParNE)}]{x \ne y \and 
+    \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$y$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \land
+    \bddtriangle{$\alpha_1$}
+    \Downarrow 
+    \alpha_{y_1}
+    \and 
+    \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$y$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \land
+    \bddtriangle{$\alpha_2$}
+    \Downarrow 
+    \alpha_{y_2}
+    \and 
+    \alpha_{y_1} \ne \alpha_{y_2}
+    }{x :: \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \land
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$y$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \Downarrow 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_{y_1}$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_{y_2}$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    }
+
+    \\
+
+    \inferrule*[Right=\textsc{(ParEQ)}]{x \ne y \and 
+    \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$y$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \land
+    \bddtriangle{$\alpha_1$}
+    \Downarrow 
+    \alpha_{y_1}
+    \and 
+    \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$y$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \land
+    \bddtriangle{$\alpha_2$}
+    \Downarrow 
+    \alpha_{y_2}
+    \and 
+    \alpha_{y_1} = \alpha_{y_2}
+    }{x :: \Gamma \vdash 
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$x$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_1$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_2$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \land
+    \begin{tikzpicture}
+      \node (x) [bddnode] {$y$};
+      \node (a1) at ($(x) + (-25bp, -20pt)$) [bddtriangle] {$\alpha_3$};
+      \node (a2) at ($(x) + (25bp, -20pt)$) [bddtriangle] {$\alpha_4$};
+    \begin{scope}[on background layer]
+      \draw [highedge] (x) -- (a1);
+      \draw [lowedge] (x) -- (a2);
+    \end{scope}
+    \end{tikzpicture}
+    \Downarrow 
+    \alpha_{y_2}
+    }
+  \end{mathpar}
+  \caption{Rules for compiling BDDs.}
+  \label{fig:bdd}
+\end{figure}
+
+\bibliographystyle{plainnat}
+\bibliography{../bib}
+
+
+\end{document}
