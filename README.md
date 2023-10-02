@@ -27,3 +27,6 @@ reference:
 * Lecture 2: Propositional Probability I: Semantics
 * Lecture 3: Propositional Probability II: Reasoning
 * Lecture 4: Propositional Probability III: Compiling
+* Lecture 5: Binary Decision Diagrams I
+* Lecture 6: Binary Decision Diagrams II
+* Lecture 7: Discrete Probabilistic Programs
