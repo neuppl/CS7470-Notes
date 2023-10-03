@@ -1,6 +1,6 @@
 \documentclass{tufte-handout}
 
-\title{Discrete Probabilistic Programming Languages\thanks{CS7470 Fall 2023: Foundations of Probabilistic Programming.}}
+\title{Discrete Probabilistic Programming Languages II\thanks{CS7470 Fall 2023: Foundations of Probabilistic Programming.}}
 
 
 \newcommand{\varset}[0]{\mathcal{V}}
@@ -15,6 +15,55 @@
 \begin{document}
 \maketitle% this prints the handout title, author, and date
 
+\begin{itemize}
+  \item We have been filling in the PPL compilation picture which organizes 
+  different kinds of probabilistic programming languages:
+
+  \includegraphics{motiv.png}
+
+  \item We now understand every component. Recall:
+  \begin{itemize}
+    \item A language consists of syntax and semantics. We customarily give two 
+    kinds of semantics: a denotational semantics that describes the mathematical 
+    object associated with the program, and an operational semantics that tells
+    us precisely how to compute that object. We typically prove something called
+    ``adequacy'' that relates the denotational and operational semantics.
+    \item A compilation $L_1 \compiles L_2$ is a procedure for translating programs 
+    written in language $L_1$ into $L_2$ that preserves semantics.
+    \item Language $L_1$ is more expressive than $L_2$ if we can efficiently 
+    compile any program from $L_2$ into $L_1$ but not vice versa;
+    \item We can compare tractability of languages based on their worst-case
+    runtime complexity.
+  \end{itemize}
+
+  \item Some bibliographic notes: 
+  \begin{itemize}
+    \item The process of compiling a Boolean formula into a tractable target is
+      often called \emph{knowledge compilation} in the
+      literature~\citep{darwiche2002knowledge}. There are many tools for compiling 
+      formulae. Some knowledge compilation tools:
+      \begin{itemize}
+        \item c2d compiles from CNF to d-DNNF: \url{http://reasoning.cs.ucla.edu/c2d/}
+        \item minic2d compiles from CNF to SDD: \url{http://reasoning.cs.ucla.edu/minic2d/}
+        \item rsdd compiles from Prop to SDD and BDD: \url{https://github.com/neuppl/rsdd}
+        \item sharpSAT compiles from CNF to d-DNNF \citep{muise2012d}
+      \end{itemize}
+    \item Disc is based on Dice~\citep{holtzen2020scaling}. There are other PPLs
+    that work by knowledge compilation, such as
+    ProbLog~\citep{fierens2015inference,de2007problog},
+    SPPL~\citep{saad2021sppl}. Historically, inference via compilation has been 
+    very effectively used in inference for graphical models~\citep{chavira2008probabilistic,sang2005performing}
+  \end{itemize}
+
+  \item What are some research questions in here?
+  \begin{itemize}
+    \item Optimizing compilers for each stage.
+    \item New tractable target languages.
+    \item Compilation with performance guarantees.
+    \item Tools for making building these compilers.
+  \end{itemize}
+\end{itemize}
+
 \section{\disc{}: A simple discrete PPL}
 
 \begin{itemize}
@@ -22,7 +71,6 @@
 \begin{lstlisting}[mathescape=true]
   e ::=
   | x $\leftarrow$ e; e
-  | observe e; e
   | flip q                         // q is a rational value
   | if e then e else e
   | return e
@@ -54,7 +102,221 @@ return x $\land$ y
 This program outputs the probability distribution $[\true \mapsto 0.25, \false
 \mapsto 0.75]$.
 
-\item \texttt{observe} is a powerful keyword that lets us \emph{condition} the
+\item \textbf{Type system}: terms can either be pure Booleans of type $\bool$ 
+or distributions on Booleans of type $\dist{\bool}$. So, we have the following 
+type definition:
+\begin{align}
+  \tau ::= \bool \mid \dist{\bool}.
+\end{align}
+
+\item We define a typing judgment $\Gamma \vdash \te : \tau$ that associates each 
+term with a type. The typing context $\Gamma$ is a map from identifiers to types.
+\begin{mathpar}
+  \inferrule{}{\Gamma \vdash \true{} : \bool} \and 
+  \inferrule{}{\Gamma \vdash \false{} : \bool} \and
+  \inferrule{}{\Gamma \vdash \texttt{flip}~\theta : \dist{\bool}} \and 
+  \inferrule{\Gamma \vdash \te : \bool}{\Gamma \vdash \texttt{return}~\te : \dist{\bool}} \and
+  % \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \tau}
+  %   {\Gamma \vdash \texttt{observe}~\te_1; \te_2 : \tau} \and
+  \inferrule{\Gamma \vdash \te_1 : \dist{\bool} \and \Gamma \cup [x \mapsto \bool] \vdash \te_2 : \tau}
+    {\Gamma \vdash x \leftarrow \te_1; \te_2 : \tau} \and 
+  \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \tau \and \Gamma \vdash \te_3 : \tau}
+    {\Gamma \vdash \texttt{if}~\te_1~\texttt{then}~\te_2~\texttt{else}~\te_3 : \tau} \and
+  \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \bool}
+    {\Gamma \vdash \te_1 \land \te_2 : \bool}
+\end{mathpar}
+
+\item This is often called a \emph{monadic} type
+system~\citep{moggi1991notions}; it waas introduced as a way of handling effects
+in purely functional languages. We won't get too into monads yet. If 
+you're curious, see \citet{ramsey2002stochastic}.
+
+\end{itemize}
+
+
+
+\subsection{Denotational semantics of \disc{}}
+
+\begin{itemize}
+\item We will define our denotation on \emph{closed terms}, i.e. terms with 
+  no free variables in them. 
+\item There are two kinds of terms: \emph{probabilistic} and \emph{pure} terms. 
+Probabilistic terms have type $\dist{\bool}$, and pure terms have type $\bool$.
+\item The denotational semantics of pure terms is standard: they map closed
+  terms to Boolean values. Examples of closed terms:
+  \begin{align*}
+    \dbracket{\true} &= \true \\ 
+    \dbracket{\false} &= \false \\ 
+    \dbracket{\te_1 \land \te_2} &= \dbracket{\te_1} \land \dbracket{\te_2}
+  \end{align*}
+\item The denotational semantics of probabilistic terms maps closed terms 
+to probability distributions, $\dbracket{\te} : \texttt{Bool} \rightarrow [0, 1]$,
+and has the following inductive definition:
+
+\begin{align*}
+\dbracket{\texttt{flip}~\theta}(v) &= 
+\begin{cases}
+\theta& \quad \text{if }v = T\\
+1-\theta& \quad \text{if }v = F\\
+\end{cases}
+ \\
+ \dbracket{\texttt{return}~\te}(v) &= 
+ \begin{cases}
+ 1\quad& \text{if }v = \dbracket{\te}\\
+ 0\quad&  \text{otherwise}\\
+ \end{cases}
+ \\
+\dbracket{x \leftarrow \te_1; \te_2}(v) &= \sum_{v'} \dbracket{\te_1}(v') \times \dbracket{\te_2[v'/x]}(v)
+\\
+\dbracket{\texttt{if}~\true~\texttt{then}~\te_1~\texttt{else}~\te_2} &= \dbracket{\te_1} \\
+\dbracket{\texttt{if}~\false~\texttt{then}~\te_1~\texttt{else}~\te_2} &= \dbracket{\te_2}
+\end{align*}
+
+\item Recall our notation for substitution $\te[v/x]$, which substitutes the 
+  variable $x$ for value $v$. Here we define substitution to 
+  be \emph{capture-avoiding}. This concept is best illustrated by example. 
+  Considering the following program:
+\begin{lstlisting}[mathescape=true]
+x $\leftarrow$ true;
+x $\leftarrow$ false;
+return true
+\end{lstlisting}
+  What should this program return? Intuitively, it should return the 
+  distribution $[\false \mapsto 1, \true \mapsto 0]$. 
+
+\item A substitution $\te[v/x]$ is \emph{capture-avoiding} if it only
+substitutes \emph{free occurrences} of $x$ with $v$ in $\te$. 
+A variable is \defn{free} if it does not occur inside of a binding.
+We can 
+accomplish this with the following inductive description of substitution
+(here we show only a subset of the rules):
+\begin{mathpar}
+  \inferrule{}{\true[x/v] = \true}
+  \and
+  \inferrule{}{\false[x/v = \false]}
+  \and
+  \inferrule{}{x[x/v] = v}
+  \and 
+  \inferrule{x \ne y}{y[x/v] = y}
+  \and
+  \inferrule{}{(x \leftarrow \te_1; \te_2)[v/x] = x \leftarrow \te_1[v/x]; \te_2}
+  \and
+  \inferrule{x \ne y}{(x \leftarrow \te_1; \te_2)[v/x] = y \leftarrow \te_1[v/x]; \te_2[v/x]}
+\end{mathpar}
+
+  % The interest case happens in the bind rule $x \leftarrow \te; \te$. Here, we
+  % have to check and ensure that we are only substituting free occurrences.
+
+  \item In your project, we have implemented capture-avoiding substitution for terms in Disc 
+  for you.
+
+\item A simple example of the let-rule:
+\begin{align*}
+  \dbracket{x \leftarrow \texttt{flip}~\theta; \texttt{return}~x}(\true) &= 
+  \sum_{v \in \bool} \dbracket{\texttt{flip}~\theta}(v) \times \dbracket{\texttt{return}~v}(\true) 
+  = \theta
+\end{align*}
+
+
+\end{itemize}
+
+% \subsection{Inference via enumeration}
+% \begin{itemize}
+%   \item Define a relation $\te \Downarrow^e $
+% \end{itemize}
+
+\section{Compiling \disc{} to \prop{}}
+\begin{itemize}
+  \item \textbf{Goal}: give a semantics-preserving compilation
+  $\rightsquigarrow$ that compiles \disc{} to \prop{}.
+  \item We want to define this relation to satisfy the following
+  \textbf{adequacy condition}, assuming the program $\te \compiles \prog$:
+  \begin{align} 
+    \dbracket{\te}(\true) = \dbracket{\prog}.
+  \end{align} 
+  % We will shorten this description to $\te \compiles
+  % (\varphi, \varphi_A, w)$ and assume that the two formulae share a common
+  % $w$. The adequacy condition then becomes:
+  % \begin{align} 
+  %   \dbracket{\te}_D(\true) = \frac{\dbracket{(\varphi, w)}}{\dbracket{(\varphi_A, w)}}.
+  % \end{align} 
+  \item Compilation relation:
+  \begin{mathpar}
+    \inferrule{}{\true \compiles (\true, \emptyset)} \and 
+    \inferrule{}{\false \compiles (\false, \emptyset)} \and 
+    \inferrule{}{x \compiles (x, [x \mapsto 1/2, \overline{x} \mapsto 1/2])} \and 
+    \inferrule{\texttt{fresh}~f}
+      {\texttt{flip}~\theta \compiles (f, [f \mapsto \theta, \overline{f} \mapsto 1-\theta])} \and
+    \inferrule{\te_1 \compiles (\varphi, w) \and \te_2 \compiles (\varphi', w')}
+      {x \leftarrow \te_1; \te_2 \compiles (\varphi'[\varphi/x], w_1 \cup w_2)} \and
+    \inferrule{\te_1 \compiles (\varphi_1, w_1) \and \te_2 \compiles (\varphi_2, w_2)}
+      {\te_1 \land \te_2 \compiles (\varphi_1 \land \varphi_2, w_1 \cup w_2)}\\
+    \inferrule{\te_1 \compiles (\varphi_1, w_1) \and \te_2 \compiles (\varphi_2, w_2) \and 
+    \te_3 \compiles (\varphi_3, w_3)
+    }
+    {\texttt{if e$_1$ then e$_2$ else e$_3$} \compiles 
+    ((\varphi_1 \land \varphi_2) \lor (\neg \varphi_1 \land \varphi_3), w_1 \cup w_2 \cup w_3)}
+  \end{mathpar}
+
+  \item One thing to notice above: we have a new substitution rule
+  $\varphi'[\varphi/x]$ that substitutes $x$ with an \emph{arbitrary
+  propositional formula} $\varphi$ in $\varphi'$. For example:
+  \begin{align*}
+    (x \lor y)[z \land w/x] = (x \land y) \lor y.
+  \end{align*}
+
+  You can perform this operation directly on BDDs; it is called \emph{BDD
+  composition}.
+
+  \item Now we are almost ready to state the semantics-preservation property of
+  this compilation. We need one extra piece: \emph{environment substitution}.
+  \item Suppose $\Gamma \vdash \te$. A substitution $\gamma \in \dbracket{\Gamma}$ 
+  gives an assignment to every free variable in $\te$. We use the notation 
+  $\te[\gamma]$ to denote performing the substituting of all variables 
+  in $\gamma$ in $\te$, i.e.:
+  \begin{align*}
+    \te[\{[v_1/x_1, v_2/x_2, \dots, v_n/x_n]\}] = \te[v_1/x_1][v_2/x_2]\dots[v_n/x_n].
+  \end{align*}
+  Additionally, note that we can apply this same substitution notation to 
+  propositional formulae, i.e. $\varphi[\gamma]$ is also well-defined 
+  according to the above description.
+\end{itemize}
+
+\begin{theorem}
+Assume $\Gamma \vdash \te$ and $\te \compiles \prog$. Then, for any substitution
+$\gamma \in \dbracket{\Gamma}$, is is the case that 
+$\dbracket{\te[\gamma]}(\true) = \dbracket{\prog[\gamma]}$.
+\end{theorem}
+\begin{proof}
+  The proof is on structural induction on terms in $\te$. 
+
+  The base case for \texttt{flip} is simple but a good place to start. Assume $\texttt{flip}~\theta 
+  \compiles (f, [f \mapsto \theta, \overline{f} \mapsto 1-\theta])$. Then,
+  \begin{align*}
+    \dbracket{\texttt{flip}~\theta}(\true) = \theta =  \dbracket{(f, [f \mapsto \theta, \overline{f} \mapsto 1-\theta])}.
+  \end{align*}
+
+  The critical case is the inductive step for binding. Inductive hypothesis:
+  assume that $\te_1 \compiles (\varphi_1, w_1)$ and $\te_2 \compiles (\varphi_2, w_2)$, 
+  and that for any well-typed substitution $\gamma$ it is the case that:
+  \begin{itemize}
+    \item $\dbracket{\te_1[\gamma]}(\true) = \dbracket{\varphi_1[\gamma]}$
+    \item $\dbracket{\te_2[\gamma]}(\true) = \dbracket{\varphi_2[\gamma]}$
+  \end{itemize}
+  We need to show that $\dbracket{x \leftarrow \te_1; \te_2}(\true) =
+  \dbracket{\varphi_2[\varphi_1/x], (w_1 \cup w_2)}$.
+
+  \textbf{TODO}; if you want, you can take a peek at \citet{holtzen2020scaling}
+
+\end{proof}
+
+\begin{itemize}
+  \item Question: Is this an efficient compilation? \emph{Yes}.
+\end{itemize}
+
+\section{Observation}
+\begin{itemize}
+  \item \texttt{observe} is a powerful keyword that lets us \emph{condition} the
 program. For instance, suppose I want to model the following scenario: ``flip 
 two coins and observe that at least one of them is heads. What is the probability 
 that the first coin was heads?''
@@ -74,70 +336,6 @@ This program outputs the probability distribution:
 \mapsto 0.25 / 0.75]
 \end{align*} 
 
-\item \textbf{Type system}: terms can either be pure Booleans of type $\bool$ 
-or distributions on Booleans of type $\dist{\bool}$. So, we have the following 
-type definition:
-\begin{align}
-  \tau ::= \bool \mid \dist{\bool}.
-\end{align}
-
-\item We define a typing judgment $\Gamma \vdash \te : \tau$ that associates each 
-term with a type. The typing context $\Gamma$ is a map from identifiers to types.
-\begin{mathpar}
-  \inferrule{}{\Gamma \vdash \true{} : \bool} \and 
-  \inferrule{}{\Gamma \vdash \false{} : \bool} \and
-  \inferrule{}{\Gamma \vdash \texttt{flip}~\theta : \dist{\bool}} \and 
-  \inferrule{\Gamma \vdash \te : \bool}{\Gamma \vdash \texttt{return}~\te : \dist{\bool}} \and
-  \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \tau}
-    {\Gamma \vdash \texttt{observe}~\te_1; \te_2 : \tau} \and
-  \inferrule{\Gamma \vdash \te_1 : \dist{\bool} \and \Gamma \cup [x \mapsto \bool] \vdash \te_2 : \tau}
-    {\Gamma \vdash x \leftarrow \te_1; \te_2 : \tau} \and 
-  \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \tau \and \Gamma \vdash \te_3 : \tau}
-    {\Gamma \vdash \texttt{if}~\te_1~\texttt{then}~\te_2~\texttt{else}~\te_3 : \tau} \and
-  \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \bool}
-    {\Gamma \vdash \te_1 \land \te_2 : \bool}
-\end{mathpar}
-
-\end{itemize}
-
-
-
-\subsection{Denotational semantics of \disc{}}
-
-\begin{itemize}
-\item Associates each term with an \emph{unnormalized probability distribution} 
-(i.e., the total probability mass may be less than 1).
-\item Has the type $\dbracket{\te} : \texttt{Bool} \rightarrow [0, 1]$,
-and has the following inductive definition:
-
-$$
-[\![\texttt{flip}~\theta]\!](v) = 
-\begin{cases}
-\theta& \quad \text{if }v = T\\
-1-\theta& \quad \text{if }v = F\\
-\end{cases}
-$$
-
-$$
- [\![\texttt{return}~e]\!](v) = 
- \begin{cases}
- 1\quad& \text{if }v = [\![e]\!]\\
- 0\quad&  \text{otherwise}\\
- \end{cases}
-$$
-
-$$
-[\![x \leftarrow e_1; e_2]\!](v) = \sum_{v'} [\![{e_1}]\!](v') \times [\![{e_2[x \mapsto v']}]\!](v)
-$$
-
-$$
-[\![\texttt{observe}~e_1; e_2]\!](v) = 
-\sum_{\{v' \mid [\![{e_1}(v') = T\}]\!]} [\![{e_2}]\!](v)
-$$
-
-\item The semantics for non-probabilistic terms is standard. The semantic evaluation has type 
-$[[e]]: \texttt{Bool}$ for closed terms.
-
 \item These semantics give an unnormalized distribution. The main semantic object of interest is 
 the normalized distribution, which is given by the \defn{normalized semantics}:
 
@@ -145,34 +343,13 @@ $$
 [\![e]\!]_D(T) = \frac{[\![e]\!](T)}{[\![e]\!](T) + [\![e]\!](F) },
 $$
 
+
 defined analogously for the false case.
-\end{itemize}
-
-% \subsection{Inference via enumeration}
-% \begin{itemize}
-%   \item Define a relation $\te \Downarrow^e $
-% \end{itemize}
-
-\section{Observation}
-
-\section{Compiling \disc{} to \prop{}}
-\begin{itemize}
-  \item \textbf{Goal}: give a semantics-preserving compilation
-  $\rightsquigarrow$ that compiles \disc{} to \prop{}
   \item In order to handle observations, we will compile \disc{} programs into 
   \emph{two} \prop{} programs: one that computes the unnormalized probability of 
   returning $\true$, and one that computes the probability of evidence (i.e. normalizing constant)
-  \item Inductive description has the shape $\te \compiles (\texttt{p}_1, \texttt{p}_2)$. We want to 
-  define this relation to satisfy the following \textbf{adequacy condition}:
-  \begin{align} 
-    \dbracket{\te}_D(\true) = \frac{\dbracket{\prog_1}}{\dbracket{\prog_2}}.
-  \end{align} 
-  We will shorten this description to $\te \compiles
-  (\varphi, \varphi_A, w)$ and assume that the two formulae share a common
-  $w$. The adequacy condition then becomes:
-  \begin{align} 
-    \dbracket{\te}_D(\true) = \frac{\dbracket{(\varphi, w)}}{\dbracket{(\varphi_A, w)}}.
-  \end{align} 
+  \item Inductive description has the shape $\te \compiles (\texttt{p}_1, \texttt{p}_2)$. 
+
   \item Compilation relation:
   \begin{mathpar}
     \inferrule{}{\true \compiles (\true, \true, \emptyset)} \and 
@@ -186,12 +363,21 @@ defined analogously for the false case.
       {\texttt{observe}~\te_1; \te_2 \compiles (\varphi', \varphi_A' \land \varphi_A, w_1 \cup w_2)}
   \end{mathpar}
 
+
 \end{itemize}
+
+$$
+[\![\texttt{observe}~e_1; e_2]\!](v) = 
+\sum_{\{v' \mid [\![{e_1}(v') = T\}]\!]} [\![{e_2}]\!](v)
+$$
+
 \begin{theorem}[Adequacy]
   For well-typed term $\te$,
   assume $\te \compiles (\varphi, \varphi_A, w)$. Then, 
   $\dbracket{\te}_D(\true) = {\dbracket{(\varphi, w)}} / {\dbracket{(\varphi_A, w)}}$.
 \end{theorem}
+
+
 
 \bibliographystyle{plainnat}
 \bibliography{../bib}
