@@ -119,7 +119,7 @@ term with a type. The typing context $\Gamma$ is a map from identifiers to types
   % \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \tau}
   %   {\Gamma \vdash \texttt{observe}~\te_1; \te_2 : \tau} \and
   \inferrule{\Gamma \vdash \te_1 : \dist{\bool} \and \Gamma \cup [x \mapsto \bool] \vdash \te_2 : \tau}
-    {\Gamma \vdash x \leftarrow \te_1; \te_2 : \tau} \and 
+    {\Gamma \vdash x \leftarrow \te_1; \te_2 : \dist{\tau}} \and 
   \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \tau \and \Gamma \vdash \te_3 : \tau}
     {\Gamma \vdash \texttt{if}~\te_1~\texttt{then}~\te_2~\texttt{else}~\te_3 : \tau} \and
   \inferrule{\Gamma \vdash \te_1 : \bool \and \Gamma \vdash \te_2 : \bool}
