@@ -1,0 +1,310 @@
+\documentclass{tufte-handout}
+
+\title{Discrete Probabilistic Programming Languages III: Observation \& Sampling\thanks{CS7470 Fall 2023: Foundations of Probabilistic Programming.}}
+
+
+\newcommand{\varset}[0]{\mathcal{V}}
+
+\author[]{Steven Holtzen\\s.holtzen@northeastern.edu}
+
+%\date{28 March 2010} % without \date command, current date is supplied
+
+%\geometry{showframe} % display margins for debugging page layout
+\input{../header.tex}
+
+\begin{document}
+\maketitle% this prints the handout title, author, and date
+
+\section{Observation}
+\begin{itemize}
+  \item Why observation? 
+  \item \texttt{observe} is a powerful keyword that lets us \emph{condition} the
+program. For instance, suppose I want to model the following scenario: ``flip 
+two coins and observe that at least one of them is heads. What is the probability 
+that the first coin was heads?''
+
+We can encode this scenario as a \disc{} program:
+
+\begin{lstlisting}[mathescape=true, caption={\textsc{TwoCoins}}]
+x $\leftarrow$ flip 0.5; 
+y $\leftarrow$ flip 0.5;
+observe x $\lor$ y;
+return x
+\end{lstlisting}
+
+This program outputs the probability distribution:
+\begin{align*}
+  [\true \mapsto (0.25 + 0.25) / 0.75, \false
+\mapsto 0.25 / 0.75]
+\end{align*} 
+
+\item Denotational semantics of \texttt{observe}:
+  \begin{align*}
+  \dbracket{\texttt{observe}~\te_1; \te_2]}(v) = 
+  \sum_{\{v' \mid \dbracket{e_1}(v') = T\}} \dbracket{\te_2}(v)
+  \end{align*}
+
+  Note that, with this definition, the semantics of probabilistic terms are now
+  \emph{unnormalized} (i.e., the distribution does not sum to 1). For example:
+  \begin{align*}
+    \dbracket{\false} = \begin{cases}
+      \true &\mapsto 0 \\ 
+      \false &\mapsto 0
+    \end{cases}
+  \end{align*}
+
+  The \textsc{TwoCoins} case:
+  \begin{align*}
+    \dbracket{\textsc{TwoCoins}} = \begin{cases}
+      \true &\mapsto 0.5 \\ 
+      \false &\mapsto 0.25
+    \end{cases}
+  \end{align*}
+  
+
+\item  The main semantic object of interest is 
+the \emph{normalized distribution}, which is given by the \defn{normalized semantics}:
+\begin{align*}
+\dbracket{\te}_D(T) = \frac{\dbracket{\te}(T)}{\dbracket{\te}(T) + \dbracket{\te}(F) },
+\end{align*}
+
+
+defined analogously for the false case.
+  \item In order to handle observations, we will compile \disc{} programs into 
+  \emph{two} \prop{} programs: one that computes the unnormalized probability of 
+  returning $\true$, and one that computes the probability of evidence (i.e. normalizing constant)
+  \item Inductive description has the shape $\te \compiles (\texttt{p}_1, \texttt{p}_2)$. 
+
+  Our goal will be for this compilation to satisfy the following form of semantics-presevation:
+  \begin{theorem}[Semantics preservation]
+    For well-typed closed term $\te$,
+    assume $\te \compiles (\varphi, \varphi_A, w)$. Then, 
+    $\dbracket{\te}_D(\true) = {\dbracket{(\varphi \land \varphi_A, w)}} / {\dbracket{(\varphi_A, w)}}$.
+  \end{theorem}
+
+  \item Compilation relation:
+  \begin{mathpar}
+    \inferrule{}{\true \compiles (\true, \true, \emptyset)} \and 
+    \inferrule{}{\false \compiles (\false, \true, \emptyset)} \and 
+    \inferrule{}{x \compiles (x, \true, \emptyset)} \and 
+    \inferrule{\texttt{fresh}~x}
+      {\texttt{flip}~\theta \compiles (x, \true, [x \mapsto \theta, \overline{x} \mapsto 1-\theta])} \and
+    \inferrule{\te_1 \compiles (\varphi, \varphi_A, w) \and \te_2 \compiles (\varphi', \varphi_A', w')}
+      {x \leftarrow \te_1; \te_2 \compiles (\varphi'[\varphi/x], \varphi_A'[\varphi/x] \land \varphi_A, w_1 \cup w_2)} \and
+    \inferrule{\te_1 \compiles (\varphi, \true, \emptyset) \and \te_2 \compiles (\varphi', \varphi_A', w)}
+      {\texttt{observe}~\te_1; \te_2 \compiles (\varphi', \varphi \land \varphi_A', w)}
+  \end{mathpar}
+
+  Most of these rules are unchanged from the previous compilation, except for bind and \texttt{observe}.
+
+  \item Example derivation:
+  
+  \begin{mathpar}
+    \inferrule{\texttt{flip}~\theta \compiles (f, \true, [f \mapsto 1/2, \overline{f} \mapsto 1/2]) \and 
+      \inferrule{x \compiles (x, \true, \emptyset) 
+      \and 
+      \inferrule{x \compiles (x, \true, \emptyset)}{\texttt{return}~x \compiles (x, \true, \emptyset)}}
+      {\texttt{observe}~x; \texttt{return}~x \compiles (x, x, \emptyset)}
+    }
+      {x \leftarrow \texttt{flip}~\theta;~\texttt{observe}~x; \texttt{return}~x \compiles (f, f, [f \mapsto 1/2, \overline{f} \mapsto 1/2])}
+  \end{mathpar}
+
+  Check that this satisfies semantics preservation.
+
+\end{itemize}
+
+\section{Some notes on the project}
+\begin{itemize}
+  \item Instead of compiling to Prop, you can work directly on the BDD
+  \item The basic primitive operation you will perform on BDDs is \emph{weighted
+  model counting}, which is a more general term for what we've so far calling 
+  the semantics of \textsc{Prop}:
+  \begin{definition}[Weighted model count]
+    Let $\varphi$ be a propositional formula and $w$ be a map from literals
+    (assignments to variables) to real-valued weights. The \emph{weighted model count}
+    is defined:
+    \begin{align}
+      \mathtt{WMC}(\varphi,w) \triangleq \sum_{I \models \varphi} \prod_{\ell \in I} w(\ell).
+    \end{align}
+  \end{definition}
+  You can see an example of running a weighted model count in \texttt{disc/lib/kc.ml}
+\end{itemize}
+
+% \begin{theorem}
+% Assume $\Gamma \vdash \te$ and $\te \compiles \prog$. Then, for any substitution
+% $\gamma \in \dbracket{\Gamma}$, is is the case that 
+% $\dbracket{\te[\gamma]}_D(\true) = \dbracket{\prog[\gamma]}$.
+% \end{theorem}
+
+
+\section{Sampling \& approximate reasoning}
+\begin{itemize}
+  \item Up until now we have been exclusively discussing \emph{exact reasoning}:
+  computing the exact probability that a program will output a particular value
+
+  \item Problems with exact reasoning:
+  \begin{itemize}
+    \item State-space explosion
+    \item Limited expressive power: how can we handle continuous probability, or loops that may never terminate?
+    \item ``All-or-nothing'': exact answer or nothing at all
+  \end{itemize}
+
+  \item An alternative is \emph{approximate reasoning}. Many of the most popular PPLs in use 
+  today support exclusively this mode of reasoning.\sidenote{For example, Stan~\citep{carpenter2017stan}.}
+
+  \item There is an entirely separate school of PPLs that reason by \emph{sampling}.
+
+  \item The crucial mechanism is the \emph{sample mean}, which gives an estimate of the expectation 
+  of a random variable:
+  
+  \begin{definition}[Expectation]
+    Let $(\Omega, \Pr)$ be a probability space and $f : \Omega \rightarrow
+    \real$ be a random variable. The \emph{expectation} (or \emph{average value}) of $f$ with respect to 
+    $\Pr$ is defined:
+    \begin{align}
+      \E_{\Pr[f]} \triangleq \sum_{\omega \in \Omega} \Pr(\omega) f(\omega).
+    \end{align}
+  \end{definition}
+
+  \begin{definition}[Sample mean]
+    Let $(\Omega, \Pr)$ be a probability space and $f : \Omega \rightarrow
+    \real$ be a random variable. Then, the \emph{sample mean} of $f$ 
+    with $N$ samples is defined:
+    \begin{align}
+      \frac{1}{N} \sum_{\omega_i \sim \Pr}^N f(\omega_i),
+    \end{align}
+    where the notation $\omega_i \sim \Pr$ denotes drawing a sample $\omega_i$ from 
+    the probability distribution $\Pr$.
+  \end{definition}
+
+  \marginnote{One may wonder \emph{how quickly} a particular
+  estimate of the mean approaches the true value (i.e., how many samples one
+  must draw in order to have an accurate estimate with high probability). There
+  are many bounds of this sort known broadly as \emph{concentration
+  inequalities}; \citet{shalev2014understanding} has a nice summary of some 
+  of the useful concentration inequalities that arise in practice in the appendix.}
+
+  \item The reason why we use the sample estimator is that the \emph{law of large numbers} 
+  guarantees that, as $N \rightarrow \infty$, the sample mean approaches the 
+  expectation, i.e.:
+  \begin{align}
+    \lim_{N \rightarrow \infty} \frac{1}{N} \sum_{\omega_i \sim \Pr}^N f(\omega_i) = \E_{\Pr}[f].
+  \end{align}
+
+  \item What will do is give a semantics to programs in terms of expectations, and then 
+  use the expectation estimator in order to get an approximation for the program's 
+  behavior
+
+\end{itemize}
+
+\subsection{Sampling semantics for \disc{}}
+\marginnote{This secton is based on the semantics given by \citet{culpepper2017contextual}.}
+\begin{itemize}
+  \item \textbf{Goal}: Give a semantics that draws samples from
+  $\dbracket{\te}$, where $\te$ is a (probabilistic) \disc{} term
+
+  \item We still want our semantics to be a \emph{deterministic relation} on terms; how can 
+  we draw samples using a deterministic relation?
+
+  \item Solution: Add a \emph{source of randomness} to our context (just like how your 
+  computer has \texttt{/dev/rand})
+
+  \item To get our feet wet with this new style of semantics, let's consider a
+  tiny sub-language of \disc{} with only the following syntax with only fair
+  coin-flips and no observations:
+\begin{lstlisting}[mathescape=true]
+  e ::= flip 1/2 | x $\leftarrow$ e; e | x | e $\land$ e | e $\lor$ e | $\neg$ e
+\end{lstlisting}
+
+  The denotation of this sub-language is inherited from \disc{}. 
+
+  \item To draw samples from this language, we add to our evaluation judgment an
+  \emph{infinite stream of fair coin-flips} $\sigma \in \bool^{\nat}$. 
+  To make this 
+  formal, we will need a way of representing a probability distribution on $\bool^\nat$.
+  This is actually much trickier to define than it seems at first! 
+
+  Let's start by defining the probability of any \emph{finite subsequence} of bits:
+  \begin{align}
+    \Pr((v_1, v_2, \dots, v_n)) = \frac{1}{2^n}
+  \end{align}
+  
+  Clearly as $n \rightarrow \infty$, this probability approaches 0. This seems broken -- 
+  how can it be that this defines a valid probability distribution (i.e., sums to 1) on 
+  all elements $\sigma \in \bool^\nat$? We will see more on this next time, but for now, 
+  accept that this is a valid definition of probability, and we will make this
+  more formal later. 
+
+  We will assume that standard properties of probability distributions (such as marginalization)
+  hold of $\Pr$, for instance:
+  \begin{align}
+    \sum_{(v_2, v_3, v_4, \dots) \in \bool^\nat}\Pr(v_1 = \true, v_2, v_3, v_4, \dots) = 1/2
+  \end{align}
+
+  \item To handle binding, we will need a way to split this bit-stream up. We notate this 
+  $\pi_L$ and $\pi_R$, which split $\sigma$ into 
+  two disjoint random sets of bits. We can define these projections in a number of ways, 
+  but a simple way is to define $\pi_L$ to take all even bits and $\pi_R$ to take all odd bits:
+  \begin{align*}
+    \pi_L(v_1, v_2, v_3, \dots) \triangleq (v_2, v_4, v_6, ...) \quad 
+    \pi_R(v_1, v_2, v_3, \dots) \triangleq (v_1, v_3, v_5, ...)
+  \end{align*}
+  
+  
+  \item Given access to this context, we can define a relation $\sigma \vdash
+  \te \Downarrow^S v$ for our tiny language above (showing only the probabilistic terms):
+  \begin{mathpar}
+    \inferrule{}{v :: \sigma \vdash \texttt{flip} \Downarrow^S v}
+    \and
+    \inferrule{\pi_L(\sigma) \vdash \te_1 \Downarrow v_1 \and 
+    \pi_R(\sigma) \vdash \te_2[v_1/x] \Downarrow v_2
+    }{\sigma \vdash x \leftarrow \te_1; \te_2 \Downarrow^S v_2}
+  \end{mathpar}
+
+  \item Since our semantics are deterministic, can define a function $ev(\sigma, \te)$ that 
+  produces the value that the (closed) term $\te$ evaluates to for $\sigma$:
+\end{itemize}
+
+
+\begin{theorem}
+  Let $\Pr$ be the distribution on the infinite bit streams $\bool^\nat$. Assume $\Gamma \vdash \te$.
+  Then, for any $\gamma \in \dbracket{\Gamma}$,
+  $\E_{\sigma \sim \Pr}[\mathbb{1}(ev(\sigma, \te[\gamma]) = \true)] = \dbracket{\te[\gamma]}(\true)$.
+\end{theorem}
+\begin{proof}
+  The non-probabilistic cases are straightforward. Let's see the \texttt{flip} 
+  case first. We can disregard $\gamma$ since this term is closed.
+  \begin{align*}
+    \E_{\sigma \sim \Pr}[\mathbb{1}(ev(\sigma, \te))] &= 
+    \sum_{(v :: \sigma ) \in \bool^\nat} \Pr(v::\sigma) \mathbb{1}[(ev(v::\sigma, \te)) = \true)] \\ 
+    &= \Pr(v = \true) \mathbb{1}[\true = \true] + \Pr(v = \false)\mathbb{1}[\false = \true] \\ 
+    &= 1/2 = \dbracket{\texttt{flip~1/2}}(\true).
+  \end{align*}
+
+  Now for the bind case, $x \leftarrow \te_1; \te_2$. Assume by induction that:
+  \begin{itemize}
+    \item $\E_{\sigma \sim \Pr}[\mathbb{1}(ev(\sigma, \te_1) = \true)] = \dbracket{\te_1}(\true)$.
+    \item $\E_{\sigma \sim \Pr}[\mathbb{1}(ev(\sigma, \te_2) = \true)] = \dbracket{\te_2}(\true)$.
+  \end{itemize}
+  Proceeding:
+  \begin{align*}
+    \E_{\sigma \sim \Pr}[\mathbb{1}(ev(x \leftarrow \te_1; \te_2) = \true)]
+  \end{align*}
+\end{proof}
+
+\begin{itemize}
+  \item Now we are left with one final problem: how can we ``run these
+  semantics'' on a computer?  I.e., how can we effectively sample from an
+  infinite stream of random bits, which seems to require infinite memory (and in
+  which each sample has probability 0)? We can \emph{sample the bits lazily}: 
+  each time a fresh random bit is required, flip a fair coin to sample it.
+
+  \item Now, let's compare sampling against exact: when might one prefer 
+  sampling over exact, and vise versa?
+\end{itemize}
+
+\bibliographystyle{plainnat}
+\bibliography{../bib}
+
+
+\end{document}
